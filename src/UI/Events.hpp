@@ -12,7 +12,7 @@
 // *** MUST leave value 0 free to mean "no event"
 enum Event : uint8_t
 {
-	evNull = 0,						// value must match nullEvent declared in Display.hpp
+	evNull = 0,                        // value must match nullEvent declared in Display.hpp
 
 	evDefaultRoot, evScreensaverRoot,
 
@@ -97,6 +97,9 @@ enum Event : uint8_t
 	evSystemConsole,
 	evSystemAlerts,
 	evSystemSettings,
+
+	// Extrusion length numeric trigger
+	evAdjustExtrudeLength,
 
 	// Numeric pad events (for full numeric input popup)
 	evNumericKey,     // integer iParam = ASCII code of digit or '.'; used while numeric pad is active

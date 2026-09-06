@@ -96,7 +96,13 @@ enum Event : uint8_t
 	// SYSTEM subpages
 	evSystemConsole,
 	evSystemAlerts,
-	evSystemSettings
+	evSystemSettings,
+
+	// Numeric pad events (for full numeric input popup)
+	evNumericKey,     // integer iParam = ASCII code of digit or '.'; used while numeric pad is active
+	evNumericBack,    // backspace key on numeric pad
+	evNumericOk,      // confirm numeric pad value
+	evNumericCancel   // cancel numeric pad
 };
 
 #endif /* SRC_UI_EVENTS_HPP_ */

@@ -79,7 +79,24 @@ enum Event : uint8_t
 	evEmergencyStop,
 
 	evJogZ,
-	evCloseAlert, evOkAlert, evChoiceAlert, evEditAlert
+	evCloseAlert, evOkAlert, evChoiceAlert, evEditAlert,
+
+	// Subpage events for the vertical tabs
+	// CONTROL subpages
+	evControlTools,
+	evControlMovement,
+	evControlExtrusion,
+	evControlMacros,
+
+	// STATUS subpages
+	evStatusJobStatus,
+	evStatusTune,
+	evStatusJob,
+
+	// SYSTEM subpages
+	evSystemConsole,
+	evSystemAlerts,
+	evSystemSettings
 };
 
 #endif /* SRC_UI_EVENTS_HPP_ */

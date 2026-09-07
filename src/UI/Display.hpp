@@ -38,6 +38,24 @@ const event_t nullEvent = 0;
 
 enum class TextAlignment : uint8_t { Left, Centre, Right };
 
+enum class UiPage : uint8_t
+{
+    None = 0,
+
+    ControlTools,
+    ControlMovement,
+    ControlExtrusion,
+    ControlMacros,
+
+    StatusJobStatus,
+    StatusTune,
+    StatusJob,
+
+    SystemConsole,
+    SystemAlerts,
+    SystemSettings
+};
+
 class ButtonBase;
 class Window;
 
@@ -77,6 +95,8 @@ protected:
 			underlined : 1,						// really belongs in class FieldWithText, but stored here to save space
 			border : 1,							// really belongs in class FieldWithText, but stored here to save space
 			textRows : 2;						// really belongs in class FieldWithText, but stored here to save space
+	
+	UiPage uiPage;
 
 	static LcdFont defaultFont;
 	static Colour defaultFcolour, defaultBcolour;
@@ -97,6 +117,8 @@ public:
 	virtual bool IsButton() const { return false; }
 	virtual bool IsVisible() const { return visible; }
 	void Show(bool v);
+	void SetUiPage(UiPage page) { uiPage = page; }
+	UiPage GetUiPage() const { return uiPage; }
 	virtual void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) = 0;
 	void SetColours(Colour pf, Colour pb);
 	void SetChanged() { changed = true; }

@@ -53,7 +53,7 @@ const PixelNumber keyboardTopMargin = 8;
 const PixelNumber popupFieldSpacing = 10;
 
 const PixelNumber axisLabelWidth = 26;
-const PixelNumber firstMessageRow = margin + rowHeight + 3;		// adjust this to get a whole number of message rows below the keyboard
+const PixelNumber firstMessageRow = margin + rowHeight + 3; 		// adjust this to get a whole number of message rows below the keyboard
 
 const PixelNumber progressBarHeight = 10;
 const PixelNumber closeButtonWidth = 40;
@@ -62,7 +62,7 @@ const PixelNumber touchCalibMargin = 15;
 
 const PixelNumber ColourGradientWidth = 2 * 128;
 
-extern uint8_t glcd19x21[];				// declare which fonts we will be using
+extern uint8_t glcd19x21[]; 				// declare which fonts we will be using
 #define DEFAULT_FONT	glcd19x21
 
 #elif DISPLAY_X == 800
@@ -77,7 +77,7 @@ const PixelNumber fieldSpacing = 12;
 const PixelNumber statusFieldWidth = 228;
 const PixelNumber bedColumn = 160;
 
-const PixelNumber rowTextHeight = 32;	// height of the font we use
+const PixelNumber rowTextHeight = 32; 	// height of the font we use
 const PixelNumber rowHeight = 48;
 const PixelNumber moveButtonRowSpacing = 20;
 const PixelNumber extrudeButtonRowSpacing = 20;
@@ -98,7 +98,7 @@ const PixelNumber keyboardTopMargin = 20;
 const PixelNumber popupFieldSpacing = 20;
 
 const PixelNumber axisLabelWidth = 40;
-const PixelNumber firstMessageRow = margin + rowHeight;		// adjust this to get a whole number of message rows below the keyboard
+const PixelNumber firstMessageRow = margin + rowHeight; 		// adjust this to get a whole number of message rows below the keyboard
 
 const PixelNumber progressBarHeight = 16;
 const PixelNumber closeButtonWidth = 66;
@@ -107,7 +107,7 @@ const PixelNumber touchCalibMargin = 22;
 
 const PixelNumber ColourGradientWidth = 3 * 128;
 
-extern uint8_t glcd28x32[];				// declare which fonts we will be using
+extern uint8_t glcd28x32[]; 				// declare which fonts we will be using
 #define DEFAULT_FONT	glcd28x32
 
 #else
@@ -119,8 +119,8 @@ extern uint8_t glcd28x32[];				// declare which fonts we will be using
 const PixelNumber buttonHeight = rowTextHeight + 4;
 const PixelNumber tempButtonWidth = (DISPLAY_X + fieldSpacing - bedColumn)/MaxSlots - fieldSpacing;
 
-const PixelNumber row1 = 0;										// we don't need a top margin
-const PixelNumber row2 = row1 + rowHeight - 2;					// the top row never has buttons so it can be shorter
+const PixelNumber row1 = 0; 												// we don't need a top margin
+const PixelNumber row2 = row1 + rowHeight - 2; 							// the top row never has buttons so it can be shorter
 const PixelNumber row3 = row2 + rowHeight;
 const PixelNumber row4 = row3 + rowHeight;
 const PixelNumber row5 = row4 + rowHeight;
@@ -131,8 +131,8 @@ const PixelNumber row7p7 = row7 + ((2 * rowHeight)/3);
 const PixelNumber row8 = row7 + rowHeight;
 const PixelNumber row8p7 = row8 + ((2 * rowHeight)/3);
 const PixelNumber row9 = row8 + rowHeight;
-const PixelNumber rowTabs = DisplayY - rowTextHeight;			// place at bottom of screen with no margin
-const PixelNumber labelRowAdjust = 2;							// how much to drop non-button fields to line up with buttons
+const PixelNumber rowTabs = DisplayY - rowTextHeight; 			// place at bottom of screen with no margin
+const PixelNumber labelRowAdjust = 2; 						// how much to drop non-button fields to line up with buttons
 
 const PixelNumber ColourGradientLeftPos = DISPLAY_X - ColourGradientWidth - margin;
 const PixelNumber ColourGradientTopPos = row2;
@@ -154,9 +154,9 @@ const PixelNumber popupBarHeight = buttonHeight + (2 * popupTopMargin);
 const PixelNumber tempPopupBarWidth = (3 * fullPopupWidth)/4;
 const PixelNumber rpmPopupBarWidth = fullPopupWidth;
 const PixelNumber fileInfoPopupWidth = fullPopupWidth - (4 * margin),
-				  fileInfoPopupHeight = (10 * rowTextHeight) + buttonHeight + (2 * popupTopMargin) + 3;
+					  fileInfoPopupHeight = (10 * rowTextHeight) + buttonHeight + (2 * popupTopMargin) + 3;
 const PixelNumber areYouSurePopupWidth = DisplayX - 80,
-				  areYouSurePopupHeight = (3 * rowHeight) + (2 * popupTopMargin);
+					  areYouSurePopupHeight = (3 * rowHeight) + (2 * popupTopMargin);
 
 const PixelNumber movePopupWidth = fullPopupWidth;
 const PixelNumber movePopupHeight = ((MaxDisplayableAxes + 1) * buttonHeight) + (MaxDisplayableAxes * moveButtonRowSpacing) + (2 * popupTopMargin);
@@ -200,5 +200,11 @@ const PixelNumber alertPopupHeight = 2 * popupTopMargin + 6 * rowTextHeight + 3 
 const PixelNumber babystepPopupWidth = (2 * fullPopupWidth)/3;
 const PixelNumber babystepPopupHeight = 3 * rowHeight + 2 * popupTopMargin;
 const PixelNumber babystepRowSpacing = rowHeight;
+
+// Temperature limits for popups
+constexpr int ExtruderMinTemp = 0;
+constexpr int ExtruderMaxTemp = 400;
+constexpr int BedMinTemp = 0;
+constexpr int BedMaxTemp = 120;
 
 #endif /* SRC_UI_USERINTERFACECONSTANTS_HPP_ */

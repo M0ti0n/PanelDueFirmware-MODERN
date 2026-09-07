@@ -32,8 +32,9 @@ Colour DisplayField::defaultPressedGradColour = 0;
 Palette DisplayField::defaultIconPalette = IconPaletteLight;
 
 DisplayField::DisplayField(PixelNumber py, PixelNumber px, PixelNumber pw)
-	: y(py), x(px), width(pw), fcolour(defaultFcolour), bcolour(defaultBcolour),
-		changed(true), visible(true), underlined(false), border(false), textRows(1), next(nullptr)
+    : y(py), x(px), width(pw), fcolour(defaultFcolour), bcolour(defaultBcolour),
+    changed(true), visible(true), underlined(false), border(false), textRows(1),
+    uiPage(UiPage::None), next(nullptr)
 {
 }
 

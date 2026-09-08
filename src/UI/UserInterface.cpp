@@ -118,7 +118,21 @@ static size_t systemAlertsFieldCount = 0;
 static DisplayField *systemSettingsFields[64];
 static size_t systemSettingsFieldCount = 0;
 
-// Helper to register fields into a group and show/hide groups
+// -- START: UI page handling
+
+static void ShowUiPage(UiPage page)
+{
+	// ...
+}
+
+static UiPage GetCurrentUiPage()
+{
+	return currentUiPage;
+};
+
+// Register a field as belonging to a UI page.
+// We keep this temporarily while migrating away from the old
+// per-page field arrays.
 static void RegisterField(DisplayField *arr[], size_t &count, DisplayField *f)
 {
 	if (f != nullptr && count < 64)
@@ -127,6 +141,8 @@ static void RegisterField(DisplayField *arr[], size_t &count, DisplayField *f)
 	}
 }
 
+// Legacy group show/hide helper.
+// Keep this for now while the new UiPage system is being introduced.
 static void ShowGroup(DisplayField *arr[], size_t count, bool show)
 {
 	for (size_t i = 0; i < count; ++i)
@@ -134,7 +150,29 @@ static void ShowGroup(DisplayField *arr[], size_t count, bool show)
 		mgr.Show(arr[i], show);
 	}
 }
-// -- END: New fields and helpers
+
+// Show one of the new UI pages.
+//
+// Fields with UiPage::None are left alone so the existing PanelDue
+// interface continues to work while we migrate it to the new system.
+static void ShowUiPage(UiPage page)
+{
+	currentUiPage = page;
+
+	for (DisplayField *field = mgr.GetRoot(); field != nullptr; field = field->next)
+	{
+		const UiPage fieldPage = field->GetUiPage();
+
+		if (fieldPage != UiPage::None)
+		{
+			field->Show(fieldPage == page);
+		}
+	}
+
+	mgr.Refresh(true);
+}
+
+// -- END: UI page handling
 
 static float axisMaxVal = 0.0;
 static FloatField *controlTabAxisPos[MaxDisplayableAxes];

@@ -179,7 +179,7 @@ static FloatField *fpHeightField, *fpLayerHeightField, *babystepOffsetField;
 static TextButtonWithLabel *babystepMinusButton, *babystepPlusButton;
 static IntegerField *fpSizeField, *fpFilamentField, *filePopupTitleField;
 static ProgressBar *printProgressBar;
-static SingleButton *tabControl, *tabStatus, *tabMsg, *tabSetup;
+static SingleButton *tabControl, *tabStatus, *tabObjects, *tabMsg, *tabSetup;
 static ButtonBase *filesButton, *pauseButton, *resumeButton, *cancelButton, *babystepButton, *reprintButton;
 static TextField *timeLeftField, *zProbe;
 static TextField *fpNameField, *fpGeneratedByField, *fpLastModifiedField, *fpPrintTimeField;
@@ -1220,10 +1220,11 @@ static void CreateCommonFields(const ColourScheme& colours)
 {
 	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour, colours.buttonBorderColour, colours.buttonGradColour,
 									colours.buttonPressedBackColour, colours.buttonPressedGradColour, colours.pal);
-	tabControl = AddTextButton(rowTabs, 0, 4, strings->control, evTabControl, nullptr);
-	tabStatus = AddTextButton(rowTabs, 1, 4, strings->status, evTabStatus, nullptr);
-	tabMsg = AddTextButton(rowTabs, 2, 4, strings->console, evTabMsg, nullptr);
-	tabSetup = AddTextButton(rowTabs, 3, 4, strings->setup, evTabSetup, nullptr);
+	tabControl = AddTextButton(rowTabs, 0, 5, strings->control, evTabControl, nullptr);
+	tabStatus = AddTextButton(rowTabs, 1, 5, strings->status, evTabStatus, nullptr);
+	tabObjects = AddTextButton(rowTabs, 2, 5, "OBJECTS", evNull, nullptr);
+	tabMsg = AddTextButton(rowTabs, 3, 5, strings->console, evTabMsg, nullptr);
+	tabSetup = AddTextButton(rowTabs, 4, 5, strings->setup, evTabSetup, nullptr);
 }
 
 static void CreateMainPages(uint32_t language, const ColourScheme& colours)

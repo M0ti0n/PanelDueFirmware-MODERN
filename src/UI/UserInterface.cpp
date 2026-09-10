@@ -118,17 +118,7 @@ static size_t systemAlertsFieldCount = 0;
 static DisplayField *systemSettingsFields[64];
 static size_t systemSettingsFieldCount = 0;
 
-// -- START: UI page handling
-
-static void ShowUiPage(UiPage page)
-{
-	// ...
-}
-
-static UiPage GetCurrentUiPage()
-{
-	return currentUiPage;
-};
+static UiPage currentUiPage = UiPage::ControlTools;
 
 // Register a field as belonging to a UI page.
 // We keep this temporarily while migrating away from the old

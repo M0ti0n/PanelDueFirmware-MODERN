@@ -81,11 +81,7 @@ static String<controlPageMacroTextLength> controlPageMacroText[NumControlPageMac
 static PopupWindow *setTempPopup, *setRPMPopup, *movePopup, *extrudePopup, *fileListPopup, *macrosPopup, *fileDetailPopup, *baudPopup,
 		*volumePopup, *infoTimeoutPopup, *screensaverTimeoutPopup, *babystepAmountPopup, *feedrateAmountPopup, *areYouSurePopup, *keyboardPopup, *languagePopup, *coloursPopup, *screensaverPopup, *firmwareUpdatePopup;
 static StaticTextField *areYouSureTextField, *areYouSureQueryField;
-static DisplayField *emptyRoot, *baseRoot, *commonRoot, *controlRoot, *printRoot, *messageRoot, *setupRoot;
-static SingleButton *homeAllButton, *bedCompButton;
-static IconButtonWithText *homeButtons[MaxDisplayableAxes], *toolButtons[MaxSlots];
-
-static DisplayField *emptyRoot, *baseRoot, *commonRoot, *controlRoot, *printRoot, *messageRoot, *setupRoot;
+static DisplayField *emptyRoot, *baseRoot, *commonRoot, *controlRoot, *printRoot, *statusObjectsRoot, *messageRoot, *setupRoot;
 static SingleButton *homeAllButton, *bedCompButton;
 static IconButtonWithText *homeButtons[MaxDisplayableAxes], *toolButtons[MaxSlots];
 
@@ -179,7 +175,7 @@ static FloatField *fpHeightField, *fpLayerHeightField, *babystepOffsetField;
 static TextButtonWithLabel *babystepMinusButton, *babystepPlusButton;
 static IntegerField *fpSizeField, *fpFilamentField, *filePopupTitleField;
 static ProgressBar *printProgressBar;
-static SingleButton *tabControl, *tabStatus, *tabObjects, *tabMsg, *tabSetup;
+static SingleButton *tabControl, *tabStatus, *tabSystem;
 static ButtonBase *filesButton, *pauseButton, *resumeButton, *cancelButton, *babystepButton, *reprintButton;
 static TextField *timeLeftField, *zProbe;
 static TextField *fpNameField, *fpGeneratedByField, *fpLastModifiedField, *fpPrintTimeField;
@@ -197,6 +193,71 @@ static AlertPopup *alertPopup;
 static CharButtonRow *keyboardRows[4];
 static const char* _ecv_array const * _ecv_array currentKeyboard;
 static void (*keyboardDataHandler)(const char *data) = nullptr;
+
+constexpr PixelNumber masterTabWidth = (DISPLAY_X == 480) ? 84 : 132;
+constexpr PixelNumber contentLeft = masterTabWidth + margin;
+constexpr PixelNumber contentWidth = DisplayX - contentLeft - margin;
+constexpr PixelNumber contentTop = buttonHeight;
+
+static bool IsMasterTab(const DisplayField *field)
+{
+	return field == tabControl || field == tabStatus || field == tabSystem;
+}
+
+// Move full-screen legacy fields into the content pane to the right of the master rail.
+static void RelayoutLegacyFields()
+{
+	DisplayField *seen[512];
+	size_t seenCount = 0;
+	DisplayField * const roots[] = { controlRoot, printRoot, statusObjectsRoot, messageRoot, setupRoot };
+
+	for (DisplayField *root : roots)
+	{
+		for (DisplayField *field = root; field != nullptr; field = field->next)
+		{
+			bool alreadySeen = false;
+			for (size_t i = 0; i < seenCount; ++i)
+			{
+				if (seen[i] == field)
+				{
+					alreadySeen = true;
+					break;
+				}
+			}
+			if (alreadySeen)
+			{
+				continue;
+			}
+
+			_ecv_assert(seenCount < ARRAY_SIZE(seen));
+			seen[seenCount++] = field;
+			if (IsMasterTab(field))
+			{
+				continue;
+			}
+
+			const PixelNumber oldX = field->GetMinX();
+			const PixelNumber oldWidth = field->GetMaxX() - oldX + 1;
+			const PixelNumber newX = contentLeft + static_cast<PixelNumber>((static_cast<uint32_t>(oldX) * contentWidth) / DisplayX);
+			PixelNumber newWidth = static_cast<PixelNumber>((static_cast<uint32_t>(oldWidth) * contentWidth) / DisplayX);
+			if (newWidth == 0)
+			{
+				newWidth = 1;
+			}
+
+			field->SetPositionAndWidth(newX, newWidth);
+			field->SetPosition(newX, field->GetMinY() + contentTop);
+		}
+	}
+}
+
+static TextButton *AddTopTab(unsigned int index, unsigned int count, const char *label, Event event)
+{
+	const PixelNumber width = contentWidth / count;
+	TextButton * const tab = new TextButton(0, contentLeft + index * width, width, label, event);
+	mgr.AddField(tab);
+	return tab;
+}
 
 static ButtonBase * null currentTab = nullptr;
 
@@ -1065,9 +1126,8 @@ static void CreatePrintingTabFields(const ColourScheme& colours)
 {
 	mgr.SetRoot(commonRoot);
 
-	// Labels
-	DisplayField::SetDefaultColours(colours.labelTextColour, colours.defaultBackColour);
-	mgr.AddField(new StaticTextField(row6 + labelRowAdjust, margin, bedColumn - fieldSpacing - margin, TextAlignment::Right, strings->extruderPercent));
+	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour);
+	mgr.AddField(new TextButton(row6, margin, bedColumn - fieldSpacing - margin, "OBJECTS", evStatusObjects));
 
 	// Extrusion factor buttons
 	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour);
@@ -1150,6 +1210,17 @@ static void CreatePrintingTabFields(const ColourScheme& colours)
 	printRoot = mgr.GetRoot();
 }
 
+// Create the Status > Objects subpage. Content will be added separately.
+static void CreateStatusObjectsTabFields(const ColourScheme& colours)
+{
+	mgr.SetRoot(commonRoot);
+
+	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour);
+	mgr.AddField(new TextButton(row6, margin, bedColumn - fieldSpacing - margin, "JOB STATUS", evStatusJobStatus));
+
+	statusObjectsRoot = mgr.GetRoot();
+}
+
 // Create the fields for the Message tab
 static void CreateMessageTabFields(const ColourScheme& colours)
 {
@@ -1220,11 +1291,42 @@ static void CreateCommonFields(const ColourScheme& colours)
 {
 	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour, colours.buttonBorderColour, colours.buttonGradColour,
 									colours.buttonPressedBackColour, colours.buttonPressedGradColour, colours.pal);
-	tabControl = AddTextButton(rowTabs, 0, 5, strings->control, evTabControl, nullptr);
-	tabStatus = AddTextButton(rowTabs, 1, 5, strings->status, evTabStatus, nullptr);
-	tabObjects = AddTextButton(rowTabs, 2, 5, "OBJECTS", evNull, nullptr);
-	tabMsg = AddTextButton(rowTabs, 3, 5, strings->console, evTabMsg, nullptr);
-	tabSetup = AddTextButton(rowTabs, 4, 5, strings->setup, evTabSetup, nullptr);
+	const PixelNumber masterWidth = masterTabWidth - 2 * margin;
+	tabControl = new TextButton(margin, margin, masterWidth, "CONTROL", evTabControl);
+	tabStatus = new TextButton(DisplayY/3 - buttonHeight/2, margin, masterWidth, "JOB", evTabStatus);
+	tabSystem = new TextButton((2 * DisplayY)/3 - buttonHeight/2, margin, masterWidth, "SYSTEM", evTabMsg);
+	mgr.AddField(tabControl);
+	mgr.AddField(tabStatus);
+	mgr.AddField(tabSystem);
+}
+
+static void AddControlSubTabs()
+{
+	mgr.SetRoot(controlRoot);
+	AddTopTab(0, 4, "TOOLS", evControlTools);
+	AddTopTab(1, 4, "MOVEMENT", evControlMovement);
+	AddTopTab(2, 4, "EXTRUDE", evControlExtrusion);
+	AddTopTab(3, 4, "MACROS", evControlMacros);
+	controlRoot = mgr.GetRoot();
+}
+
+static void AddStatusSubTabs(DisplayField *&root)
+{
+	mgr.SetRoot(root);
+	AddTopTab(0, 4, "JOB STATUS", evStatusJobStatus);
+	AddTopTab(1, 4, "TUNE", evStatusTune);
+	AddTopTab(2, 4, "JOBS", evStatusJob);
+	AddTopTab(3, 4, "OBJECT", evStatusObjects);
+	root = mgr.GetRoot();
+}
+
+static void AddSystemSubTabs(DisplayField *&root)
+{
+	mgr.SetRoot(root);
+	AddTopTab(0, 3, "CONSOLE", evSystemConsole);
+	AddTopTab(1, 3, "ALERTS", evSystemAlerts);
+	AddTopTab(2, 3, "SETTINGS", evSystemSettings);
+	root = mgr.GetRoot();
 }
 
 static void CreateMainPages(uint32_t language, const ColourScheme& colours)
@@ -1234,6 +1336,7 @@ static void CreateMainPages(uint32_t language, const ColourScheme& colours)
 		language = 0;
 	}
 	emptyRoot = mgr.GetRoot();
+	mgr.SetLeftMargin(masterTabWidth);
 	strings = &LanguageTables[language];
 	CreateCommonFields(colours);
 	baseRoot = mgr.GetRoot();		// save the root of fields that we usually display
@@ -1248,8 +1351,16 @@ static void CreateMainPages(uint32_t language, const ColourScheme& colours)
 	// Create the pages
 	CreateControlTabFields(colours);
 	CreatePrintingTabFields(colours);
+	CreateStatusObjectsTabFields(colours);
 	CreateMessageTabFields(colours);
 	CreateSetupTabFields(language, colours);
+
+	RelayoutLegacyFields();
+	AddControlSubTabs();
+	AddStatusSubTabs(printRoot);
+	AddStatusSubTabs(statusObjectsRoot);
+	AddSystemSubTabs(messageRoot);
+	AddSystemSubTabs(setupRoot);
 	CreateScreensaverPopup();
 	CreateFirmwareUpdatePopup();
 }
@@ -2445,6 +2556,18 @@ namespace UI
 				{
 					currentButton.Clear();						// keep the button highlighted after it is released
 				}
+				break;
+
+			case evStatusJobStatus:
+				mgr.SetRoot(printRoot);
+				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+			case evStatusObjects:
+				mgr.SetRoot(statusObjectsRoot);
+				mgr.Refresh(true);
+				currentButton.Clear();
 				break;
 
 			case evAdjustToolActiveTemp:

@@ -92,6 +92,7 @@ enum Event : uint8_t
 	evStatusJobStatus,
 	evStatusTune,
 	evStatusJob,
+	evStatusObjects,
 
 	// SYSTEM subpages
 	evSystemConsole,

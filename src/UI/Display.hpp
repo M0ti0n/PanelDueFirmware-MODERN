@@ -48,8 +48,9 @@ enum class UiPage : uint8_t
     ControlMacros,
 
     StatusJobStatus,
-    StatusTune,
-    StatusJob,
+	StatusTune,
+	StatusJob,
+	StatusObjects,
 
     SystemConsole,
     SystemAlerts,

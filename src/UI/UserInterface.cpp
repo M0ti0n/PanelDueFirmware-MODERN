@@ -1241,21 +1241,47 @@ static void CreateStatusObjectsTabFields(const ColourScheme& colours)
 
     for (unsigned int i = 0; i < StatusObjectsPerPage; ++i)
 	{
-    	char label[32];
-    	snprintf(label, sizeof(label), "%u  Object %u", i + 1, i + 1);
+    mgr.AddField(new TextButton(
+    	firstRow,
+   		listLeft,
+    	listWidth,
+    	"1  Object 1",
+    	evStatusObject1));
 
-    	TextButton * const button = new TextButton(
-        	firstRow + i * rowHeight,
-        	listLeft,
-        	listWidth,
-        	label,
-        	evStatusObjectSelect);
+	mgr.AddField(new TextButton(
+    	firstRow + rowHeight,
+    	listLeft,
+    	listWidth,
+    	"2  Object 2",
+    	evStatusObject2));
 
-    button->SetData(i);
+	mgr.AddField(new TextButton(
+    	firstRow + 2 * rowHeight,
+    	listLeft,
+    	listWidth,
+    	"3  Object 3",
+    	evStatusObject3));
 
-    if (i == selectedStatusObject)
-    {
-        button->Press(true, 0);
+	mgr.AddField(new TextButton(
+    	firstRow + 3 * rowHeight,
+    	listLeft,
+    	listWidth,
+    	"4  Object 4",
+    	evStatusObject4));
+
+	mgr.AddField(new TextButton(
+    	firstRow + 4 * rowHeight,
+    	listLeft,
+    	listWidth,
+    	"5  Object 5",
+	    evStatusObject5));
+
+	mgr.AddField(new TextButton(
+    	firstRow + 5 * rowHeight,
+    	listLeft,
+    	listWidth,
+    	"6  Object 6",
+    	evStatusObject6));
     }
 
     mgr.AddField(button);

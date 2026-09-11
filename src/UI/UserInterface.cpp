@@ -1293,14 +1293,14 @@ static void CreateStatusObjectsTabFields(const ColourScheme& colours)
         listLeft,
         (listWidth - margin) / 2,
         "UP",
-        evNull));
+        evStatusObjectPageUp;
 
     mgr.AddField(new TextButton(
         DisplayY - buttonHeight - margin,
         listLeft + (listWidth + margin) / 2,
         (listWidth - margin) / 2,
         "DOWN",
-        evNull));
+        evStatusObjectPageDown;
 
     // Top-view area
     DisplayField::SetDefaultColours(colours.infoTextColour, colours.backgroundColour);

@@ -1210,14 +1210,13 @@ static void CreatePrintingTabFields(const ColourScheme& colours)
 	printRoot = mgr.GetRoot();
 }
 
-// Create the Status > Objects subpage. Content will be added separately.
+// Create the Status > Objects subpage.
+// Object list and top-view fields will be added here later.
 static void CreateStatusObjectsTabFields(const ColourScheme& colours)
 {
+	UNUSED(colours);
+
 	mgr.SetRoot(commonRoot);
-
-	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour);
-	mgr.AddField(new TextButton(row6, margin, bedColumn - fieldSpacing - margin, "JOB STATUS", evStatusJobStatus));
-
 	statusObjectsRoot = mgr.GetRoot();
 }
 
@@ -1293,8 +1292,8 @@ static void CreateCommonFields(const ColourScheme& colours)
 									colours.buttonPressedBackColour, colours.buttonPressedGradColour, colours.pal);
 	const PixelNumber masterWidth = masterTabWidth - 2 * margin;
 	tabControl = new TextButton(margin, margin, masterWidth, "CONTROL", evTabControl);
-	tabStatus = new TextButton(DisplayY/3 - buttonHeight/2, margin, masterWidth, "JOB", evTabStatus);
-	tabSystem = new TextButton((2 * DisplayY)/3 - buttonHeight/2, margin, masterWidth, "SYSTEM", evTabMsg);
+	tabStatus = new TextButton(DisplayY/3 - buttonHeight/2, margin, masterWidth, "STATUS", evTabStatus);
+	tabSystem = new TextButton((2 * DisplayY)/3 - buttonHeight/2, margin, masterWidth, "SYSTEM", evTabSystem);
 	mgr.AddField(tabControl);
 	mgr.AddField(tabStatus);
 	mgr.AddField(tabSystem);
@@ -1315,8 +1314,8 @@ static void AddStatusSubTabs(DisplayField *&root)
 	mgr.SetRoot(root);
 	AddTopTab(0, 4, "JOB STATUS", evStatusJobStatus);
 	AddTopTab(1, 4, "TUNE", evStatusTune);
-	AddTopTab(2, 4, "JOBS", evStatusJob);
-	AddTopTab(3, 4, "OBJECT", evStatusObjects);
+	AddTopTab(2, 4, "JOB", evStatusJob);
+	AddTopTab(3, 4, "OBJECTS", evStatusObjects);
 	root = mgr.GetRoot();
 }
 
@@ -1824,9 +1823,18 @@ namespace UI
 			nameField->SetValue(
 					PrintInProgress() ? printingFile.c_str() : machineName.c_str());
 			break;
+		case evTabSystem:
+			mgr.SetRoot(messageRoot);
+			if (keyboardIsDisplayed)
+			{
+				keyboardDataHandler = SendGcode;
+				mgr.SetPopup(keyboardPopup, AutoPlace, keyboardPopupY, false);
+			}
+			break;
 		case evTabMsg:
 			mgr.SetRoot(messageRoot);
-			if (keyboardIsDisplayed) {
+			if (keyboardIsDisplayed)
+			{
 				keyboardDataHandler = SendGcode;
 				mgr.SetPopup(keyboardPopup, AutoPlace, keyboardPopupY, false);
 			}
@@ -2499,6 +2507,7 @@ namespace UI
 		{
 		case evTabControl:
 		case evTabStatus:
+		case evTabSystem:
 		case evTabMsg:
 		case evTabSetup:
 
@@ -2550,6 +2559,7 @@ namespace UI
 
 			case evTabControl:
 			case evTabStatus:
+			case evTabSystem:
 			case evTabMsg:
 			case evTabSetup:
 				if (ChangePage(f))
@@ -2560,12 +2570,28 @@ namespace UI
 
 			case evStatusJobStatus:
 				mgr.SetRoot(printRoot);
+				currentUiPage = UiPage::StatusJobStatus;
+				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+			case evStatusTune:
+				mgr.SetRoot(printRoot);
+				currentUiPage = UiPage::StatusTune;
+				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+			case evStatusJob:
+				mgr.SetRoot(printRoot);
+				currentUiPage = UiPage::StatusJob;
 				mgr.Refresh(true);
 				currentButton.Clear();
 				break;
 
 			case evStatusObjects:
 				mgr.SetRoot(statusObjectsRoot);
+				currentUiPage = UiPage::StatusObjects;
 				mgr.Refresh(true);
 				currentButton.Clear();
 				break;

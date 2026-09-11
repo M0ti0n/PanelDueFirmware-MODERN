@@ -1214,10 +1214,96 @@ static void CreatePrintingTabFields(const ColourScheme& colours)
 // Object list and top-view fields will be added here later.
 static void CreateStatusObjectsTabFields(const ColourScheme& colours)
 {
-	UNUSED(colours);
+    mgr.SetRoot(baseRoot);
 
-	mgr.SetRoot(commonRoot);
-	statusObjectsRoot = mgr.GetRoot();
+    const PixelNumber listLeft = contentLeft + margin;
+    const PixelNumber listWidth = contentWidth * 4 / 10;
+    const PixelNumber mapLeft = listLeft + listWidth + margin;
+    const PixelNumber mapWidth = DisplayX - mapLeft - margin;
+
+    // Page title
+    DisplayField::SetDefaultColours(colours.infoTextColour, colours.backgroundColour);
+    mgr.AddField(new StaticTextField(
+        contentTop + margin,
+        listLeft,
+        listWidth,
+        "OBJECT CANCEL",
+        TextAlignment::Left));
+
+    // Object list
+    const PixelNumber firstRow = contentTop + buttonHeight + margin;
+    const PixelNumber rowHeight = buttonHeight;
+
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        char label[32];
+        snprintf(label, sizeof(label), "%u  Object %u", i + 1, i + 1);
+
+        mgr.AddField(new TextButton(
+            firstRow + i * rowHeight,
+            listLeft,
+            listWidth,
+            label,
+            evNull));
+    }
+
+    // Paging controls
+    mgr.AddField(new TextButton(
+        DisplayY - buttonHeight - margin,
+        listLeft,
+        (listWidth - margin) / 2,
+        "UP",
+        evNull));
+
+    mgr.AddField(new TextButton(
+        DisplayY - buttonHeight - margin,
+        listLeft + (listWidth + margin) / 2,
+        (listWidth - margin) / 2,
+        "DOWN",
+        evNull));
+
+    // Top-view area
+    DisplayField::SetDefaultColours(colours.infoTextColour, colours.backgroundColour);
+    mgr.AddField(new StaticTextField(
+        contentTop + margin,
+        mapLeft,
+        mapWidth,
+        "TOP VIEW",
+        TextAlignment::Centre));
+
+    // Rudimentary build-plate/object markers
+    const PixelNumber markerWidth = buttonHeight;
+    const PixelNumber markerHeight = buttonHeight;
+
+    mgr.AddField(new TextButton(
+        contentTop + buttonHeight * 2,
+        mapLeft + mapWidth / 4,
+        markerWidth,
+        "1",
+        evNull));
+
+    mgr.AddField(new TextButton(
+        contentTop + buttonHeight * 3,
+        mapLeft + mapWidth / 2,
+        markerWidth,
+        "2",
+        evNull));
+
+    mgr.AddField(new TextButton(
+        contentTop + buttonHeight * 4,
+        mapLeft + mapWidth / 3,
+        markerWidth,
+        "3",
+        evNull));
+
+    mgr.AddField(new TextButton(
+        contentTop + buttonHeight * 5,
+        mapLeft + mapWidth * 2 / 3,
+        markerWidth,
+        "4",
+        evNull));
+
+    statusObjectsRoot = mgr.GetRoot();
 }
 
 // Create the fields for the Message tab

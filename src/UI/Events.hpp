@@ -93,7 +93,12 @@ enum Event : uint8_t
 	evStatusTune,
 	evStatusJob,
 	evStatusObjects,
-	evStatusObjectSelect,
+	evStatusObject1,
+	evStatusObject2,
+	evStatusObject3,
+	evStatusObject4,
+	evStatusObject5,
+	evStatusObject6,
 	evStatusObjectPageUp,
 	evStatusObjectPageDown,
 

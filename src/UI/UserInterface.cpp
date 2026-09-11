@@ -2596,6 +2596,28 @@ namespace UI
 				currentButton.Clear();
 				break;
 
+			case evSystemConsole:
+				mgr.SetRoot(messageRoot);
+				currentUiPage = UiPage::SystemConsole;
+				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+			case evSystemAlerts:
+				mgr.SetRoot(messageRoot);
+				currentUiPage = UiPage::SystemAlerts;
+				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+			case evSystemSettings:
+				mgr.SetRoot(setupRoot);
+				currentUiPage = UiPage::SystemSettings;
+				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+
 			case evAdjustToolActiveTemp:
 			case evAdjustToolStandbyTemp:
 			case evAdjustBedActiveTemp:

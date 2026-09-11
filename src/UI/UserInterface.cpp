@@ -120,6 +120,11 @@ static size_t systemSettingsFieldCount = 0;
 
 static UiPage currentUiPage = UiPage::ControlTools;
 
+static constexpr unsigned int StatusObjectsPerPage = 6;
+
+static unsigned int statusObjectPage = 0;
+static unsigned int selectedStatusObject = 0;
+
 // Register a field as belonging to a UI page.
 // We keep this temporarily while migrating away from the old
 // per-page field arrays.
@@ -1234,18 +1239,27 @@ static void CreateStatusObjectsTabFields(const ColourScheme& colours)
     const PixelNumber firstRow = contentTop + buttonHeight + margin;
     const PixelNumber rowHeight = buttonHeight;
 
-    for (unsigned int i = 0; i < 6; ++i)
-    {
-        char label[32];
-        snprintf(label, sizeof(label), "%u  Object %u", i + 1, i + 1);
+    for (unsigned int i = 0; i < StatusObjectsPerPage; ++i)
+	{
+    	char label[32];
+    	snprintf(label, sizeof(label), "%u  Object %u", i + 1, i + 1);
 
-        mgr.AddField(new TextButton(
-            firstRow + i * rowHeight,
-            listLeft,
-            listWidth,
-            label,
-            evNull));
+    	TextButton * const button = new TextButton(
+        	firstRow + i * rowHeight,
+        	listLeft,
+        	listWidth,
+        	label,
+        	evStatusObjectSelect);
+
+    button->SetData(i);
+
+    if (i == selectedStatusObject)
+    {
+        button->Press(true, 0);
     }
+
+    mgr.AddField(button);
+}
 
     // Paging controls
     mgr.AddField(new TextButton(

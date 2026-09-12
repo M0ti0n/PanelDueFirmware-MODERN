@@ -119,11 +119,8 @@ static DisplayField *systemSettingsFields[64];
 static size_t systemSettingsFieldCount = 0;
 
 static UiPage currentUiPage = UiPage::ControlTools;
-static unsigned int statusObjectPage = 0;
-static unsigned int selectedStatusObject = 0;
 
 static constexpr unsigned int StatusObjectsPerPage = 6;
-
 static unsigned int statusObjectPage = 0;
 static unsigned int selectedStatusObject = 0;
 
@@ -1241,53 +1238,47 @@ static void CreateStatusObjectsTabFields(const ColourScheme& colours)
     const PixelNumber firstRow = contentTop + buttonHeight + margin;
     const PixelNumber rowHeight = buttonHeight;
 
-    for (unsigned int i = 0; i < StatusObjectsPerPage; ++i)
-	{
     mgr.AddField(new TextButton(
-    	firstRow,
-   		listLeft,
-    	listWidth,
-    	"1  Object 1",
-    	evStatusObject1));
+        firstRow,
+        listLeft,
+        listWidth,
+        "1  Object 1",
+        evStatusObject1));
 
-	mgr.AddField(new TextButton(
-    	firstRow + rowHeight,
-    	listLeft,
-    	listWidth,
-    	"2  Object 2",
-    	evStatusObject2));
+    mgr.AddField(new TextButton(
+        firstRow + rowHeight,
+        listLeft,
+        listWidth,
+        "2  Object 2",
+        evStatusObject2));
 
-	mgr.AddField(new TextButton(
-    	firstRow + 2 * rowHeight,
-    	listLeft,
-    	listWidth,
-    	"3  Object 3",
-    	evStatusObject3));
+    mgr.AddField(new TextButton(
+        firstRow + 2 * rowHeight,
+        listLeft,
+        listWidth,
+        "3  Object 3",
+        evStatusObject3));
 
-	mgr.AddField(new TextButton(
-    	firstRow + 3 * rowHeight,
-    	listLeft,
-    	listWidth,
-    	"4  Object 4",
-    	evStatusObject4));
+    mgr.AddField(new TextButton(
+        firstRow + 3 * rowHeight,
+        listLeft,
+        listWidth,
+        "4  Object 4",
+        evStatusObject4));
 
-	mgr.AddField(new TextButton(
-    	firstRow + 4 * rowHeight,
-    	listLeft,
-    	listWidth,
-    	"5  Object 5",
-	    evStatusObject5));
+    mgr.AddField(new TextButton(
+        firstRow + 4 * rowHeight,
+        listLeft,
+        listWidth,
+        "5  Object 5",
+        evStatusObject5));
 
-	mgr.AddField(new TextButton(
-    	firstRow + 5 * rowHeight,
-    	listLeft,
-    	listWidth,
-    	"6  Object 6",
-    	evStatusObject6));
-    }
-
-    mgr.AddField(button);
-}
+    mgr.AddField(new TextButton(
+        firstRow + 5 * rowHeight,
+        listLeft,
+        listWidth,
+        "6  Object 6",
+        evStatusObject6));
 
     // Paging controls
     mgr.AddField(new TextButton(
@@ -1295,14 +1286,14 @@ static void CreateStatusObjectsTabFields(const ColourScheme& colours)
         listLeft,
         (listWidth - margin) / 2,
         "UP",
-        evStatusObjectPageUp;
+        evStatusObjectPageUp));
 
     mgr.AddField(new TextButton(
         DisplayY - buttonHeight - margin,
         listLeft + (listWidth + margin) / 2,
         (listWidth - margin) / 2,
         "DOWN",
-        evStatusObjectPageDown;
+        evStatusObjectPageDown));
 
     // Top-view area
     DisplayField::SetDefaultColours(colours.infoTextColour, colours.backgroundColour);
@@ -2721,6 +2712,49 @@ namespace UI
 				mgr.SetRoot(statusObjectsRoot);
 				currentUiPage = UiPage::StatusObjects;
 				mgr.Refresh(true);
+				currentButton.Clear();
+				break;
+
+			case evStatusObject1:
+				selectedStatusObject = statusObjectPage * StatusObjectsPerPage + 0;
+				currentButton.Clear();
+				break;
+
+			case evStatusObject2:
+				selectedStatusObject = statusObjectPage * StatusObjectsPerPage + 1;
+				currentButton.Clear();
+				break;
+
+			case evStatusObject3:
+				selectedStatusObject = statusObjectPage * StatusObjectsPerPage + 2;
+				currentButton.Clear();
+				break;
+
+			case evStatusObject4:
+				selectedStatusObject = statusObjectPage * StatusObjectsPerPage + 3;
+				currentButton.Clear();
+				break;
+
+			case evStatusObject5:
+				selectedStatusObject = statusObjectPage * StatusObjectsPerPage + 4;
+				currentButton.Clear();
+				break;
+
+			case evStatusObject6:
+				selectedStatusObject = statusObjectPage * StatusObjectsPerPage + 5;
+				currentButton.Clear();
+				break;
+
+			case evStatusObjectPageUp:
+				if (statusObjectPage > 0)
+				{
+					--statusObjectPage;
+				}
+				currentButton.Clear();
+				break;
+
+			case evStatusObjectPageDown:
+				++statusObjectPage;
 				currentButton.Clear();
 				break;
 

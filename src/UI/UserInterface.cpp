@@ -119,6 +119,8 @@ static DisplayField *systemSettingsFields[64];
 static size_t systemSettingsFieldCount = 0;
 
 static UiPage currentUiPage = UiPage::ControlTools;
+static unsigned int statusObjectPage = 0;
+static unsigned int selectedStatusObject = 0;
 
 static constexpr unsigned int StatusObjectsPerPage = 6;
 

@@ -55,7 +55,7 @@ namespace FileManager
 	}
 
 	FileSet::FileSet(const char * _ecv_array rootDir, unsigned int numDisp, bool pIsFilesList)
-		: numDisplayed(numDisp), currentPath(), timer(FileListRequestTimeout, "", requestedPath.c_str()), whichList(-1), scrollOffset(0),
+		: numDisplayed(numDisp), currentPath(), timer(FileListRequestTimeout, "", requestedPath.c_str()), whichList(-1), scrollOffset(0), statusJobScrollOffset(0),
 		  isFilesList(pIsFilesList), cardNumber(0)
 	{
 		requestedPath.copy(rootDir);
@@ -88,6 +88,7 @@ namespace FileManager
 			SetIndex(-1);
 		}
 		FileListUpdated();
+		StatusJobPageUpdated();
 		StopTimer();
 	}
 
@@ -176,6 +177,107 @@ namespace FileManager
 	{
 		scrollOffset += amount;
 		FileListUpdated();
+	}
+
+	void FileSet::StatusJobPageUpdated()
+	{
+#if DISPLAY_X == 800
+		static constexpr unsigned int JobRows = 6;
+		if (!isFilesList)
+		{
+			return;
+		}
+
+		if (whichList >= 0)
+		{
+			FileListIndex& fileIndex = fileIndices[whichList];
+			if (statusJobScrollOffset < 0 || fileIndex.Size() == 0)
+			{
+				statusJobScrollOffset = 0;
+			}
+			else if ((unsigned int)statusJobScrollOffset >= fileIndex.Size())
+			{
+				statusJobScrollOffset = ((fileIndex.Size() - 1) / JobRows) * JobRows;
+			}
+
+			UI::EnableStatusJobNavButtons(statusJobScrollOffset != 0,
+				statusJobScrollOffset + JobRows < fileIndex.Size(), IsInSubdir());
+			for (unsigned int i = 0; i < JobRows; ++i)
+			{
+				if (i + statusJobScrollOffset < fileIndex.Size())
+				{
+					const char * const entry = fileIndex[i + statusJobScrollOffset];
+					UI::UpdateStatusJobFileButton(i, entry, entry);
+				}
+				else
+				{
+					UI::UpdateStatusJobFileButton(i, nullptr, nullptr);
+				}
+			}
+		}
+		else
+		{
+			UI::EnableStatusJobNavButtons(false, false, false);
+			for (unsigned int i = 0; i < JobRows; ++i)
+			{
+				UI::UpdateStatusJobFileButton(i, nullptr, nullptr);
+			}
+		}
+#endif
+	}
+
+	void FileSet::DisplayStatusJobPage()
+	{
+		StatusJobPageUpdated();
+		SetPending();
+	}
+
+	void FileSet::ScrollStatusJobPage(int amount)
+	{
+		statusJobScrollOffset += amount;
+		StatusJobPageUpdated();
+	}
+
+	void FileSet::RequestStatusJobSubdir(const char * _ecv_array dir)
+	{
+		statusJobScrollOffset = 0;
+		whichList = -1;
+		StatusJobPageUpdated();
+
+		requestedPath.copy(currentPath.c_str());
+		if (requestedPath.strlen() == 0 || requestedPath[requestedPath.strlen() - 1] != '/')
+		{
+			requestedPath.cat('/');
+		}
+		requestedPath.cat(dir);
+		SetPending();
+	}
+
+	void FileSet::RequestStatusJobParentDir()
+	{
+		statusJobScrollOffset = 0;
+		whichList = -1;
+		StatusJobPageUpdated();
+
+		size_t end = currentPath.strlen();
+		if (end != 0 && currentPath[end - 1] == '/')
+		{
+			--end;
+		}
+		while (end != 0)
+		{
+			--end;
+			if (currentPath[end] == '/')
+			{
+				break;
+			}
+		}
+		requestedPath.Clear();
+		for (size_t i = 0; i < end; ++i)
+		{
+			requestedPath.cat(currentPath[i]);
+		}
+		SetPending();
 	}
 
 	void FileSet::SetPath(const char * _ecv_array pPath)
@@ -416,6 +518,26 @@ namespace FileManager
 	void DisplayFilesList()
 	{
 		gcodeFilesList.Display();
+	}
+
+	void DisplayFilesPage()
+	{
+		gcodeFilesList.DisplayStatusJobPage();
+	}
+
+	void ScrollFilesPage(int amount)
+	{
+		gcodeFilesList.ScrollStatusJobPage(amount);
+	}
+
+	void RequestFilesPageSubdir(const char * _ecv_array dir)
+	{
+		gcodeFilesList.RequestStatusJobSubdir(dir);
+	}
+
+	void RequestFilesPageParentDir()
+	{
+		gcodeFilesList.RequestStatusJobParentDir();
 	}
 
 	void DisplayMacrosList()

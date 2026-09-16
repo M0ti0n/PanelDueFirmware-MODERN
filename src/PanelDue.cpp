@@ -265,6 +265,7 @@ enum ReceivedDataEvent
 	rcvBoardsFirmwareName,
 
 	// Keys for fans response
+	rcvFansName,
 	rcvFansRequestedValue,
 
 	// Keys for heat response
@@ -272,16 +273,27 @@ enum ReceivedDataEvent
 	rcvHeatBedHeaterMapping,
 	rcvHeatChamberHeaters,
 	rcvHeatChamberHeaterMapping,
+	rcvHeatColdExtrudeTemperature,
+	rcvHeatColdRetractTemperature,
 	rcvHeatHeatersActive,
 	rcvHeatHeatersCurrent,
 	rcvHeatHeatersStandby,
 	rcvHeatHeatersState,
 
 	// Keys for job response
+	rcvJobBuildCurrentObject,
+	rcvJobBuildObjectCancelled,
+	rcvJobBuildObjectName,
+	rcvJobBuildObjectX,
+	rcvJobBuildObjectXNull,
+	rcvJobBuildObjectY,
+	rcvJobBuildObjectYNull,
 	rcvJobDuration,
 	rcvJobFileFilename,
 	rcvJobFileSize,
+	rcvJobFileNumLayers,
 	rcvJobFilePosition,
+	rcvJobLayer,
 	rcvJobFileSimulatedTime,
 	rcvJobLastFileName,
 	rcvJobLastFileSimulated,
@@ -296,10 +308,16 @@ enum ReceivedDataEvent
 	rcvMoveAxesLetter,
 	rcvMoveAxesMachinePosition,
 	rcvMoveAxesMax,
+	rcvMoveAxesMin,
 	rcvMoveAxesUserPosition,
 	rcvMoveAxesVisible,
 	rcvMoveAxesWorkplaceOffsets,
+	rcvMoveCurrentExtrusionRate,
+	rcvMoveCurrentRequestedSpeed,
+	rcvMoveCurrentTopSpeed,
 	rcvMoveExtrudersFactor,
+	rcvMoveExtrudersFilamentDiameter,
+	rcvMoveExtrudersPressureAdvance,
 	rcvMoveKinematicsName,
 	rcvMoveSpeedFactor,
 	rcvMoveWorkplaceNumber,
@@ -384,6 +402,7 @@ static FieldTableEntry fieldTable[] =
 	{ rcvBoardsFirmwareName, 			"boards^:firmwareName" },
 
 	// M409 K"fans" response
+	{ rcvFansName,						"fans^:name" },
 	{ rcvFansRequestedValue,			"fans^:requestedValue" },
 
 	// M409 K"heat" response
@@ -391,16 +410,27 @@ static FieldTableEntry fieldTable[] =
 	{ rcvHeatBedHeaterMapping,			"heat:bedHeaterMapping^^" },		// RRF 3.7 and later
 	{ rcvHeatChamberHeaters,			"heat:chamberHeaters^" },			// RRF 3.6 and earlier
 	{ rcvHeatChamberHeaterMapping,		"heat:chamberHeaterMapping^^" },	// RRF 3.7 and later
+	{ rcvHeatColdExtrudeTemperature,		"heat:coldExtrudeTemperature" },
+	{ rcvHeatColdRetractTemperature,		"heat:coldRetractTemperature" },
 	{ rcvHeatHeatersActive,				"heat:heaters^:active" },
 	{ rcvHeatHeatersCurrent,			"heat:heaters^:current" },
 	{ rcvHeatHeatersStandby,			"heat:heaters^:standby" },
 	{ rcvHeatHeatersState,				"heat:heaters^:state" },
 
 	// M409 K"job" response
+	{ rcvJobBuildCurrentObject,			"job:build:currentObject" },
+	{ rcvJobBuildObjectCancelled,		"job:build:objects^:cancelled" },
+	{ rcvJobBuildObjectName,			"job:build:objects^:name" },
+	{ rcvJobBuildObjectXNull,			"job:build:objects^:x" },
+	{ rcvJobBuildObjectX,				"job:build:objects^:x^" },
+	{ rcvJobBuildObjectYNull,			"job:build:objects^:y" },
+	{ rcvJobBuildObjectY,				"job:build:objects^:y^" },
 	{ rcvJobFileFilename, 				"job:file:fileName" },
+	{ rcvJobFileNumLayers,				"job:file:numLayers" },
 	{ rcvJobFileSize, 					"job:file:size" },
 	{ rcvJobFileSimulatedTime, 			"job:file:simulatedTime" },
 	{ rcvJobFilePosition,				"job:filePosition" },
+	{ rcvJobLayer,						"job:layer" },
 	{ rcvJobLastFileName,				"job:lastFileName" },
 	{ rcvJobDuration,					"job:duration" },
 	{ rcvJobTimesLeftFilament,			"job:timesLeft:filament" },
@@ -414,10 +444,16 @@ static FieldTableEntry fieldTable[] =
 	{ rcvMoveAxesLetter,	 			"move:axes^:letter" },
 	{ rcvMoveAxesMachinePosition,		"move:axes^:machinePosition" },
 	{ rcvMoveAxesMax, 					"move:axes^:max" },
+	{ rcvMoveAxesMin, 					"move:axes^:min" },
 	{ rcvMoveAxesUserPosition,			"move:axes^:userPosition" },
 	{ rcvMoveAxesVisible, 				"move:axes^:visible" },
 	{ rcvMoveAxesWorkplaceOffsets, 		"move:axes^:workplaceOffsets^" },
+	{ rcvMoveCurrentExtrusionRate,		"move:currentMove:extrusionRate" },
+	{ rcvMoveCurrentRequestedSpeed,		"move:currentMove:requestedSpeed" },
+	{ rcvMoveCurrentTopSpeed,			"move:currentMove:topSpeed" },
 	{ rcvMoveExtrudersFactor, 			"move:extruders^:factor" },
+	{ rcvMoveExtrudersFilamentDiameter,	"move:extruders^:filamentDiameter" },
+	{ rcvMoveExtrudersPressureAdvance,	"move:extruders^:pressureAdvance" },
 	{ rcvMoveKinematicsName, 			"move:kinematics:name" },
 	{ rcvMoveSpeedFactor, 				"move:speedFactor" },
 	{ rcvMoveWorkplaceNumber, 			"move:workplaceNumber" },
@@ -1246,6 +1282,10 @@ static void ProcessReceivedValue(StringRef id, const char data[], const size_t i
 		break;
 
 	// Fans section
+	case rcvFansName:
+		UI::UpdateFanName(indices[0], data);
+		break;
+
 	case rcvFansRequestedValue:
 		{
 			float f;
@@ -1318,6 +1358,26 @@ static void ProcessReceivedValue(StringRef id, const char data[], const size_t i
 		}
 		break;
 
+	case rcvHeatColdExtrudeTemperature:
+		{
+			float fval;
+			if (GetFloat(data, fval))
+			{
+				UI::UpdateColdExtrudeTemperature(fval);
+			}
+		}
+		break;
+
+	case rcvHeatColdRetractTemperature:
+		{
+			float fval;
+			if (GetFloat(data, fval))
+			{
+				UI::UpdateColdRetractTemperature(fval);
+			}
+		}
+		break;
+
 	case rcvHeatHeatersActive:
 		{
 			int32_t ival;
@@ -1364,6 +1424,51 @@ static void ProcessReceivedValue(StringRef id, const char data[], const size_t i
 		break;
 
 	// Job section
+	case rcvJobBuildCurrentObject:
+		{
+			int32_t objectIndex;
+			UI::UpdateStatusCurrentObject(GetInteger(data, objectIndex) ? objectIndex : -1);
+		}
+		break;
+
+	case rcvJobBuildObjectCancelled:
+		{
+			bool cancelled;
+			if (GetBool(data, cancelled))
+			{
+				UI::UpdateStatusObjectCancelled(indices[0], cancelled);
+			}
+		}
+		break;
+
+	case rcvJobBuildObjectName:
+		UI::UpdateStatusObjectName(indices[0], data);
+		break;
+
+	case rcvJobBuildObjectXNull:
+		UI::ClearStatusObjectCoordinate(indices[0], true);
+		break;
+
+	case rcvJobBuildObjectYNull:
+		UI::ClearStatusObjectCoordinate(indices[0], false);
+		break;
+
+	case rcvJobBuildObjectX:
+	case rcvJobBuildObjectY:
+		{
+			const bool xAxis = (rde == rcvJobBuildObjectX);
+			if (indices[1] == 0)
+			{
+				UI::BeginStatusObjectCoordinate(indices[0], xAxis);
+			}
+			float coordinate;
+			if (GetFloat(data, coordinate))
+			{
+				UI::UpdateStatusObjectCoordinate(indices[0], xAxis, coordinate);
+			}
+		}
+		break;
+
 	case rcvJobDuration:
 		{
 			uint32_t duration;
@@ -1380,6 +1485,20 @@ static void ProcessReceivedValue(StringRef id, const char data[], const size_t i
 
 	case rcvJobFileFilename:
 		UI::PrintingFilenameChanged(data);
+		break;
+
+	case rcvJobFileNumLayers:
+		{
+			uint32_t layers;
+			UI::UpdateJobNumLayers(GetUnsignedInteger(data, layers) ? layers : 0);
+		}
+		break;
+
+	case rcvJobLayer:
+		{
+			uint32_t layer;
+			UI::UpdateJobLayer(GetUnsignedInteger(data, layer) ? layer : 0);
+		}
 		break;
 
 	case rcvJobFileSize:
@@ -1502,6 +1621,16 @@ static void ProcessReceivedValue(StringRef id, const char data[], const size_t i
 		}
 		break;
 
+	case rcvMoveAxesMin:
+		{
+			float val;
+			if (GetFloat(data, val))
+			{
+				UI::SetAxisMin(indices[0], val);
+			}
+		}
+		break;
+
 	case rcvMoveAxesUserPosition:
 		{
 			float fval;
@@ -1537,12 +1666,53 @@ static void ProcessReceivedValue(StringRef id, const char data[], const size_t i
 		}
 		break;
 
+	case rcvMoveCurrentExtrusionRate:
+		{
+			float value;
+			UI::UpdateCurrentMoveExtrusionRate(GetFloat(data, value) ? value : 0.0f);
+		}
+		break;
+
+	case rcvMoveCurrentRequestedSpeed:
+		{
+			float value;
+			UI::UpdateCurrentMoveRequestedSpeed(GetFloat(data, value) ? value : 0.0f);
+		}
+		break;
+
+	case rcvMoveCurrentTopSpeed:
+		{
+			float value;
+			UI::UpdateCurrentMoveTopSpeed(GetFloat(data, value) ? value : 0.0f);
+		}
+		break;
+
+	case rcvMoveExtrudersFilamentDiameter:
+		{
+			float value;
+			if (GetFloat(data, value))
+			{
+				UI::UpdateFilamentDiameter(indices[0], value);
+			}
+		}
+		break;
+
 	case rcvMoveExtrudersFactor:
 		{
 			float fval;
 			if (GetFloat(data, fval))
 			{
 				UI::UpdateExtrusionFactor(indices[0], (int)((fval * 100.0f) + 0.5));
+			}
+		}
+		break;
+
+	case rcvMoveExtrudersPressureAdvance:
+		{
+			float fval;
+			if (GetFloat(data, fval))
+			{
+				UI::UpdatePressureAdvance(indices[0], fval);
 			}
 		}
 		break;
@@ -2193,12 +2363,15 @@ static void ProcessArrayElementEnd(const char id[], const size_t index)
 	// check if new thumbnail fits better
 	if ((strcmp(id, "thumbnails^") == 0) && ThumbnailIsValid(thumbnailNew.thumbnail))
 	{
-		if (thumbnailCurrent.thumbnail.height < thumbnailNew.thumbnail.height &&
-		    thumbnailNew.thumbnail.height <= fpThumbnail->GetHeight() &&
+		const unsigned int targetWidth = UI::GetThumbnailTargetWidth();
+		const unsigned int targetHeight = UI::GetThumbnailTargetHeight();
+		if (targetWidth != 0 && targetHeight != 0 &&
+		    thumbnailCurrent.thumbnail.height < thumbnailNew.thumbnail.height &&
+		    thumbnailNew.thumbnail.height <= targetHeight &&
 		    thumbnailCurrent.thumbnail.width < thumbnailNew.thumbnail.width &&
-		    thumbnailNew.thumbnail.width <= fpThumbnail->GetWidth())
+		    thumbnailNew.thumbnail.width <= targetWidth)
 		{
-			dbg("setting new thumbnail %d/%d\r\n", fpThumbnail->GetWidth(), fpThumbnail->GetWidth());
+			dbg("setting new thumbnail %d/%d\r\n", targetWidth, targetHeight);
 			thumbnailCurrent = thumbnailNew;
 		} else {
 			dbg("error thumbnail invalid\r\n");
@@ -2216,6 +2389,21 @@ static void ProcessArrayEnd(const char id[], const size_t indices[])
 	if (indices[0] == 0 && strcmp(id, "files^") == 0)
 	{
 		FileManager::BeginReceivingFiles();				// received an empty file list - need to tell the file manager about it
+	}
+	else if (currentResponseType == rcvOMKeyJob)
+	{
+		if (strcasecmp(id, "job:build:objects^") == 0)
+		{
+			UI::UpdateStatusObjectCount(indices[0]);
+		}
+		else if (strcasecmp(id, "job:build:objects^:x^") == 0 && indices[1] == 0)
+		{
+			UI::ClearStatusObjectCoordinate(indices[0], true);
+		}
+		else if (strcasecmp(id, "job:build:objects^:y^") == 0 && indices[1] == 0)
+		{
+			UI::ClearStatusObjectCoordinate(indices[0], false);
+		}
 	}
 	else if (currentResponseType == rcvOMKeyHeat)
 	{

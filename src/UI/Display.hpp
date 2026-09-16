@@ -388,6 +388,26 @@ public:
 	}
 };
 
+class ModernCard : public DisplayField
+{
+private:
+	PixelNumber height;
+	Colour borderColour;
+	bool borderVisible;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernCard(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		Colour fillColour, Colour pBorderColour, bool showBorder = false);
+
+	void SetBorderVisible(bool visible);
+	void SetBorderColour(Colour colour);
+	void SetFillColour(Colour colour);
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
 class ButtonBase : public DisplayField
 {
 protected:
@@ -441,6 +461,171 @@ public:
 
 	static void SetTextMargin(PixelNumber p) { textMargin = p; }
 	static void SetIconMargin(PixelNumber p) { iconMargin = p; }
+};
+
+class ModernTextButton : public SingleButton
+{
+private:
+	const char * _ecv_array null text;
+	PixelNumber height;
+	LcdFont font;
+	bool drawBorder;
+	TextAlignment alignment;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernTextButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null pt, event_t e, int param = 0,
+		LcdFont pf = nullptr, bool borderVisible = false, TextAlignment pa = TextAlignment::Centre);
+
+	void SetText(const char * _ecv_array null pt);
+	void SetBorderVisible(bool visible) { if (drawBorder != visible) { drawBorder = visible; changed = true; } }
+	void SetBorderColour(Colour c) { if (borderColour != c) { borderColour = c; changed = true; } }
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
+enum class ModernResourceIcon : uint8_t
+{
+	None,
+	Bed
+};
+
+// Compact label used by modern resource cards. The optional bed glyph is
+// vector-drawn so it can follow the live foreground colour without a bitmap.
+class ModernResourceLabel : public DisplayField
+{
+private:
+	const char * _ecv_array null text;
+	PixelNumber height;
+	LcdFont font;
+	ModernResourceIcon icon;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernResourceLabel(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null pt, LcdFont pf = nullptr);
+
+	void SetText(const char * _ecv_array null pt);
+	void SetIcon(ModernResourceIcon pi) { if (icon != pi) { icon = pi; changed = true; } }
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
+enum class ModernTemperatureIcon : uint8_t
+{
+	Active,
+	Standby
+};
+
+// Fixed-height modern temperature target button used by the 800x480 UI.
+// It draws either the active-target symbol or the standby crescent in the
+// upper-left corner while keeping the numeric value centred.
+class ModernTemperatureButton : public SingleButton
+{
+private:
+	const char * _ecv_array null text;
+	PixelNumber height;
+	LcdFont font;
+	ModernTemperatureIcon icon;
+	bool drawBorder;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernTemperatureButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null pt, ModernTemperatureIcon pi, event_t e, int param = 0,
+		LcdFont pf = nullptr, bool borderVisible = false);
+
+	void SetText(const char * _ecv_array null pt);
+	void SetBorderVisible(bool visible) { if (drawBorder != visible) { drawBorder = visible; changed = true; } }
+	void SetBorderColour(Colour c) { if (borderColour != c) { borderColour = c; changed = true; } }
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
+// Fixed-height power button with a vector-drawn power glyph. This avoids
+// adding another bitmap icon to flash for the modern TOOLS page.
+class ModernPowerButton : public SingleButton
+{
+private:
+	PixelNumber height;
+	bool drawBorder;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernPowerButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		event_t e, int param = 0, bool borderVisible = false);
+
+	void SetBorderVisible(bool visible) { if (drawBorder != visible) { drawBorder = visible; changed = true; } }
+	void SetBorderColour(Colour c) { if (borderColour != c) { borderColour = c; changed = true; } }
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
+class ModernIconButton : public SingleButton
+{
+private:
+	Icon icon;
+	PixelNumber height;
+	bool drawBorder;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernIconButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		Icon pi, event_t e, int param = 0, bool borderVisible = false);
+
+	void SetBorderVisible(bool visible) { if (drawBorder != visible) { drawBorder = visible; changed = true; } }
+	void SetBorderColour(Colour c) { if (borderColour != c) { borderColour = c; changed = true; } }
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
+// Fixed-height vector home button used by the modern MOVE page.  The icon
+// follows fcolour, so the UI can turn both the glyph and the outline Accent
+// when RRF reports the corresponding axis as homed.
+class ModernHomeButton : public SingleButton
+{
+private:
+	const char * _ecv_array null label;
+	PixelNumber height;
+	bool drawBorder;
+	LcdFont font;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernHomeButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null plabel, event_t e, int param = 0,
+		LcdFont pf = nullptr, bool borderVisible = false);
+
+	void SetBorderVisible(bool visible) { if (drawBorder != visible) { drawBorder = visible; changed = true; } }
+	void SetBorderColour(Colour c) { if (borderColour != c) { borderColour = c; changed = true; } }
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
+};
+
+// Dedicated G32/bed-compensation button for the modern MOVE page.  This is
+// deliberately state-less: unlike HOME controls it never acquires an Accent
+// outline.  The vector glyph is larger than the legacy bitmap so it remains
+// visually balanced in the 117x80 SVG tile.
+class ModernBedCompButton : public SingleButton
+{
+private:
+	PixelNumber height;
+
+protected:
+	PixelNumber GetHeight() const override { return height; }
+
+public:
+	ModernBedCompButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		event_t e, int param = 0);
+
+	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
 };
 
 class ButtonWithText : public SingleButton
@@ -809,6 +994,7 @@ public:
 	void Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset) override;
 
 	void DrawRect(PixelNumber widthRect, PixelNumber heightRect, unsigned int pixels_offset, const qoi_rgba_t *pixels, size_t pixels_count);
+	void DrawRect565(PixelNumber widthRect, PixelNumber heightRect, unsigned int pixels_offset, const uint16_t *pixels, size_t pixels_count);
 };
 
 #endif /* DISPLAY_H_ */

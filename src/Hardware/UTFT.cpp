@@ -2258,6 +2258,33 @@ void UTFT::drawBitmapRgbaStream(int x, int y, int width, int height, int pixels_
 	removeCS();
 }
 
+// Draw an RGB565 bitmap stream. The input may start/end in the middle of a row.
+void UTFT::drawBitmap565Stream(int x, int y, int width, int height, int pixels_offset, const uint16_t *pixels, size_t pixels_count)
+{
+	if (x < 0 || y < 0 || width <= 0 || height <= 0 || pixels_offset < 0 || pixels == nullptr ||
+		(pixels_offset + pixels_count) > static_cast<size_t>(width * height))
+	{
+		return;
+	}
+
+	assertCS();
+	size_t done = 0;
+	while (done < pixels_count)
+	{
+		const size_t absolute = static_cast<size_t>(pixels_offset) + done;
+		const int row = static_cast<int>(absolute / width);
+		const int col = static_cast<int>(absolute % width);
+		const size_t run = std::min<size_t>(pixels_count - done, static_cast<size_t>(width - col));
+		setXY(x + col, y + row, x + col + static_cast<int>(run) - 1, y + row);
+		for (size_t i = 0; i < run; ++i)
+		{
+			LCD_Write_DATA16(pixels[done + i]);
+		}
+		done += run;
+	}
+	removeCS();
+}
+
 // Seaw a bitmap using 4-bit colours and a palette
 void UTFT::drawBitmap4(int x, int y, int sx, int sy, const uint8_t * data, Palette palette, int scale, bool byCols)
 {

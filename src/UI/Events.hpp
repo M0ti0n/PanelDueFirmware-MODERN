@@ -87,6 +87,23 @@ enum Event : uint8_t
 	evControlMovement,
 	evControlExtrusion,
 	evControlMacros,
+	evControlToolsPageUp,
+	evControlToolsPageDown,
+	evControlToolsPower,
+	evControlToolsActiveTemp,
+	evControlToolsStandbyTemp,
+	evControlToolChangeConfirm,
+	evControlToolChangeCancel,
+	evControlMoveStep,
+	evControlMoveJog,
+	evControlMoveHome,
+	evControlMoveBedComp,
+	evModernAlertClose,
+	evControlExtrudeSpeed,
+	evControlExtrudeDistance,
+	evControlExtrudeAction,
+	evControlExtrudePageUp,
+	evControlExtrudePageDown,
 
 	// STATUS subpages
 	evStatusJobStatus,
@@ -101,6 +118,39 @@ enum Event : uint8_t
 	evStatusObject6,
 	evStatusObjectPageUp,
 	evStatusObjectPageDown,
+	evStatusObjectSelect,
+	evStatusObjectNumber,
+	evStatusObjectMarker,
+	evStatusObjectCancelConfirm,
+	evStatusObjectCancelClose,
+
+	// STATUS > TUNE controls
+	evTuneSpeed,
+	evTuneGeneralFan,
+	evTuneToolFan,
+	evTuneToolFlow,
+	evTunePressureAdvance,
+	evTunePageUp,
+	evTunePageDown,
+	evTuneZMinus,
+	evTuneZPlus,
+	evTunePopupAdjustPercent,
+	evTunePopupAdjustPa,
+	evTunePopupConfirm,
+	evTunePopupCancel,
+
+	// STATUS > JOB controls
+	evStatusJobFile,
+	evStatusJobPageUp,
+	evStatusJobPageDown,
+	evStatusJobPrintConfirm,
+	evStatusJobPrintCancel,
+
+	// STATUS > JOB STATUS controls
+	evStatusJobStatusPauseResume,
+	evStatusJobStatusAbort,
+	evStatusJobStatusConfirm,
+	evStatusJobStatusCancel,
 
 	// SYSTEM subpages
 	evSystemConsole,

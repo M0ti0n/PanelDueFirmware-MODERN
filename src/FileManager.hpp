@@ -27,6 +27,7 @@ namespace FileManager
 		RequestTimer timer;
 		int whichList;
 		int scrollOffset;
+		int statusJobScrollOffset;
 		bool IsInSubdir() const;
 		const bool isFilesList;			// true for a file list, false for a macro list
 		uint8_t cardNumber;
@@ -51,9 +52,14 @@ namespace FileManager
 		bool NextCard();
 		bool SelectCard(unsigned int cardNum);
 		void FirmwareFeaturesChanged();
+		void DisplayStatusJobPage();
+		void ScrollStatusJobPage(int amount);
+		void RequestStatusJobSubdir(const char * _ecv_array dir);
+		void RequestStatusJobParentDir();
 
 	private:
 		void SetupRootPath();
+		void StatusJobPageUpdated();
 	};
 
 	void BeginNewMessage();
@@ -64,6 +70,10 @@ namespace FileManager
 	void ReceiveErrorCode(int err);
 
 	void DisplayFilesList();
+	void DisplayFilesPage();				// refresh the embedded STATUS > JOB list without opening the legacy popup
+	void ScrollFilesPage(int amount);
+	void RequestFilesPageSubdir(const char * _ecv_array dir);
+	void RequestFilesPageParentDir();
 	void DisplayMacrosList();
 	void ScrollFiles(int amount);
 	void ScrollMacros(int amount);

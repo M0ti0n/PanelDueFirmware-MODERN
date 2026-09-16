@@ -665,6 +665,462 @@ void StaticTextField::PrintText() const
 	}
 }
 
+ModernTextButton::ModernTextButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null pt, event_t e, int param, LcdFont pf, bool borderVisible, TextAlignment pa)
+	: SingleButton(py, px, pw), text(pt), height(ph), font(pf != nullptr ? pf : DisplayField::defaultFont), drawBorder(borderVisible), alignment(pa)
+{
+	SetEvent(e, param);
+}
+
+void ModernTextButton::SetText(const char * _ecv_array null pt)
+{
+	if (text != pt)
+	{
+		text = pt;
+		changed = true;
+	}
+	else
+	{
+		// The modern UI commonly points at mutable String<> buffers. The pointer may
+		// therefore stay the same while the rendered text changes.
+		changed = true;
+	}
+}
+
+void ModernTextButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	lcd.setColor(pressed ? pressedBackColour : bcolour);
+	lcd.fillRoundRect(left, top, right, bottom);
+	if (drawBorder)
+	{
+		lcd.setColor(borderColour);
+		lcd.drawRoundRect(left, top, right, bottom);
+		if (width > 2 && height > 2)
+		{
+			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
+		}
+	}
+
+	if (text != nullptr)
+	{
+		lcd.setTransparentBackground(true);
+		lcd.setColor(fcolour);
+		lcd.setFont(font);
+		lcd.setTextPos(0, 9999, width - 8);
+		lcd.printf("%s", text);
+		const PixelNumber textWidth = lcd.getTextX();
+		const PixelNumber fontHeight = UTFT::GetFontHeight(font);
+		PixelNumber tx;
+		if (alignment == TextAlignment::Left)
+		{
+			tx = left + 20;
+		}
+		else if (alignment == TextAlignment::Right)
+		{
+			tx = (width > textWidth + 20) ? right - textWidth - 19 : left + 2;
+		}
+		else
+		{
+			tx = left + ((width > textWidth) ? (width - textWidth)/2 : 2);
+		}
+		const PixelNumber ty = top + ((height > fontHeight) ? (height - fontHeight)/2 : 0);
+		lcd.setTextPos(tx, ty, right - 3);
+		lcd.printf("%s", text);
+		lcd.setTransparentBackground(false);
+	}
+	changed = false;
+}
+
+ModernResourceLabel::ModernResourceLabel(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null pt, LcdFont pf)
+	: DisplayField(py, px, pw), text(pt), height(ph), font(pf != nullptr ? pf : DisplayField::defaultFont), icon(ModernResourceIcon::None)
+{
+}
+
+void ModernResourceLabel::SetText(const char * _ecv_array null pt)
+{
+	text = pt;
+	changed = true;
+}
+
+void ModernResourceLabel::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	// Clear only the label band. This also removes a bed glyph when a paged
+	// column is reused for a tool on another page.
+	lcd.setColor(bcolour);
+	lcd.fillRect(left, top, right, bottom);
+
+	lcd.setFont(font);
+	lcd.setTransparentBackground(true);
+	lcd.setColor(fcolour);
+	lcd.setTextPos(0, 9999, width - 4);
+	if (text != nullptr)
+	{
+		lcd.printf("%s", text);
+	}
+	const PixelNumber textWidth = lcd.getTextX();
+	const PixelNumber fontHeight = UTFT::GetFontHeight(font);
+	const PixelNumber iconWidth = (icon == ModernResourceIcon::Bed) ? 20 : 0;
+	const PixelNumber gap = (iconWidth != 0 && textWidth != 0) ? 6 : 0;
+	const PixelNumber groupWidth = iconWidth + gap + textWidth;
+	const PixelNumber groupLeft = left + ((width > groupWidth) ? (width - groupWidth)/2 : 2);
+
+	if (icon == ModernResourceIcon::Bed)
+	{
+		const int ix = static_cast<int>(groupLeft);
+		const int iy = static_cast<int>(top + ((height > 20) ? (height - 20)/2 : 0));
+		// Bed plate.
+		lcd.fillRoundRect(ix, iy + 15, ix + 19, iy + 19);
+		// Three compact heat-wave strokes, matching the SVG motif without
+		// requiring a new icon asset or palette entry.
+		for (int wave = 0; wave < 3; ++wave)
+		{
+			const int wx = ix + 3 + wave * 7;
+			lcd.drawLine(wx, iy + 12, wx + 2, iy + 8);
+			lcd.drawLine(wx + 2, iy + 8, wx, iy + 4);
+		}
+	}
+
+	if (text != nullptr)
+	{
+		const PixelNumber tx = groupLeft + iconWidth + gap;
+		const PixelNumber ty = top + ((height > fontHeight) ? (height - fontHeight)/2 : 0);
+		lcd.setTextPos(tx, ty, right - 2);
+		lcd.printf("%s", text);
+	}
+	lcd.setTransparentBackground(false);
+	changed = false;
+}
+
+ModernTemperatureButton::ModernTemperatureButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null pt, ModernTemperatureIcon pi, event_t e, int param, LcdFont pf, bool borderVisible)
+	: SingleButton(py, px, pw), text(pt), height(ph), font(pf != nullptr ? pf : DisplayField::defaultFont), icon(pi), drawBorder(borderVisible)
+{
+	SetEvent(e, param);
+}
+
+void ModernTemperatureButton::SetText(const char * _ecv_array null pt)
+{
+	text = pt;
+	changed = true;
+}
+
+void ModernTemperatureButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	const Colour background = pressed ? pressedBackColour : bcolour;
+	lcd.setColor(background);
+	lcd.fillRoundRect(left, top, right, bottom);
+	if (drawBorder)
+	{
+		lcd.setColor(borderColour);
+		lcd.drawRoundRect(left, top, right, bottom);
+		if (width > 2 && height > 2)
+		{
+			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
+		}
+	}
+
+	// Small vector status glyph in the same position used by the SVG mock-up.
+	const int glyphX = static_cast<int>(left) + 20;
+	const int glyphY = static_cast<int>(top) + 18;
+	lcd.setColor(fcolour);
+	if (icon == ModernTemperatureIcon::Active)
+	{
+		lcd.drawCircle(glyphX, glyphY, 9);
+		lcd.fillCircle(glyphX, glyphY, 3);
+	}
+	else
+	{
+		lcd.fillCircle(glyphX, glyphY, 9);
+		lcd.setColor(background);
+		lcd.fillCircle(glyphX + 5, glyphY - 5, 8);
+	}
+
+	if (text != nullptr)
+	{
+		lcd.setTransparentBackground(true);
+		lcd.setColor(fcolour);
+		lcd.setFont(font);
+		lcd.setTextPos(0, 9999, width - 8);
+		lcd.printf("%s", text);
+		const PixelNumber textWidth = lcd.getTextX();
+		const PixelNumber fontHeight = UTFT::GetFontHeight(font);
+		const PixelNumber tx = left + ((width > textWidth) ? (width - textWidth)/2 : 2);
+		const PixelNumber ty = top + ((height > fontHeight) ? (height - fontHeight)/2 + 10 : 0);
+		lcd.setTextPos(tx, ty, right - 3);
+		lcd.printf("%s", text);
+		lcd.setTransparentBackground(false);
+	}
+	changed = false;
+}
+
+ModernPowerButton::ModernPowerButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		event_t e, int param, bool borderVisible)
+	: SingleButton(py, px, pw), height(ph), drawBorder(borderVisible)
+{
+	SetEvent(e, param);
+}
+
+void ModernPowerButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	lcd.setColor(pressed ? pressedBackColour : bcolour);
+	lcd.fillRoundRect(left, top, right, bottom);
+	if (drawBorder)
+	{
+		lcd.setColor(borderColour);
+		lcd.drawRoundRect(left, top, right, bottom);
+		if (width > 2 && height > 2)
+		{
+			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
+		}
+	}
+
+	const int cx = static_cast<int>(left + width/2);
+	const int cy = static_cast<int>(top + height/2) + 1;
+	lcd.setColor(fcolour);
+	lcd.drawCircle(cx, cy, 10);
+	lcd.drawCircle(cx, cy, 9);
+	lcd.drawLine(cx, cy - 13, cx, cy - 2);
+	lcd.drawLine(cx + 1, cy - 13, cx + 1, cy - 2);
+	changed = false;
+}
+
+ModernIconButton::ModernIconButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		Icon pi, event_t e, int param, bool borderVisible)
+	: SingleButton(py, px, pw), icon(pi), height(ph), drawBorder(borderVisible)
+{
+	SetEvent(e, param);
+}
+
+void ModernIconButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	lcd.setColor(pressed ? pressedBackColour : bcolour);
+	lcd.fillRoundRect(left, top, right, bottom);
+	if (drawBorder)
+	{
+		lcd.setColor(borderColour);
+		lcd.drawRoundRect(left, top, right, bottom);
+		if (width > 2 && height > 2)
+		{
+			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
+		}
+	}
+	const PixelNumber iw = GetIconWidth(icon);
+	const PixelNumber ih = GetIconHeight(icon);
+	lcd.setTransparentBackground(true);
+	lcd.drawBitmap4(left + (width - iw)/2, top + (height - ih)/2, iw, ih, GetIconData(icon), defaultIconPalette);
+	lcd.setTransparentBackground(false);
+	changed = false;
+}
+
+ModernHomeButton::ModernHomeButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		const char * _ecv_array null plabel, event_t e, int param, LcdFont pf, bool borderVisible)
+	: SingleButton(py, px, pw), label(plabel), height(ph), drawBorder(borderVisible),
+	  font(pf != nullptr ? pf : DisplayField::defaultFont)
+{
+	SetEvent(e, param);
+}
+
+void ModernHomeButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	lcd.setColor(pressed ? pressedBackColour : bcolour);
+	lcd.fillRoundRect(left, top, right, bottom);
+	if (drawBorder)
+	{
+		lcd.setColor(borderColour);
+		lcd.drawRoundRect(left, top, right, bottom);
+		if (width > 2 && height > 2)
+		{
+			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
+		}
+	}
+
+	// House outline.  It is drawn from primitives rather than the legacy
+	// palette bitmap so the whole glyph can follow the live Accent colour.
+	const int cx = static_cast<int>(left + width/2);
+	const int peakY = static_cast<int>(top) + 14;
+	const int roofY = static_cast<int>(top) + 34;
+	const int baseY = static_cast<int>(top) + height - 14;
+	const int roofHalf = 24;
+	const int wallHalf = 16;
+	lcd.setColor(fcolour);
+	for (int t = 0; t < 2; ++t)
+	{
+		lcd.drawLine(cx, peakY + t, cx - roofHalf, roofY + t);
+		lcd.drawLine(cx, peakY + t, cx + roofHalf, roofY + t);
+		lcd.drawLine(cx - wallHalf - t, roofY - 1, cx - wallHalf - t, baseY);
+		lcd.drawLine(cx + wallHalf + t, roofY - 1, cx + wallHalf + t, baseY);
+		lcd.drawLine(cx - wallHalf, baseY - t, cx + wallHalf, baseY - t);
+	}
+
+	if (label != nullptr)
+	{
+		lcd.setTransparentBackground(true);
+		lcd.setFont(font);
+		lcd.setTextPos(0, 9999, static_cast<PixelNumber>(2 * wallHalf));
+		lcd.printf("%s", label);
+		const PixelNumber textWidth = lcd.getTextX();
+		const PixelNumber fontHeight = UTFT::GetFontHeight(font);
+		const PixelNumber tx = static_cast<PixelNumber>(cx - static_cast<int>(textWidth)/2);
+		const int fontHeightInt = static_cast<int>(fontHeight);
+		const PixelNumber ty = static_cast<PixelNumber>(roofY + ((baseY - roofY > fontHeightInt) ? (baseY - roofY - fontHeightInt)/2 : 0));
+		lcd.setTextPos(tx, ty, right - 2);
+		lcd.printf("%s", label);
+		lcd.setTransparentBackground(false);
+	}
+	changed = false;
+}
+
+ModernBedCompButton::ModernBedCompButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		event_t e, int param)
+	: SingleButton(py, px, pw), height(ph)
+{
+	SetEvent(e, param);
+}
+
+void ModernBedCompButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	lcd.setColor(pressed ? pressedBackColour : bcolour);
+	lcd.fillRoundRect(left, top, right, bottom);
+
+	// Approx. 54x38 glyph: about 30% larger than the 41x30 large legacy
+	// IconBedComp while retaining the same up/down bed-level visual language.
+	const int cx = static_cast<int>(left + width/2);
+	const int cy = static_cast<int>(top + height/2);
+	lcd.setColor(fcolour);
+	lcd.drawLine(cx - 27, cy - 10, cx + 27, cy - 10);
+	lcd.drawLine(cx - 27, cy - 9, cx + 27, cy - 9);
+	// Up marker, left side.
+	lcd.drawLine(cx - 20, cy + 8, cx - 13, cy - 2);
+	lcd.drawLine(cx - 13, cy - 2, cx - 6, cy + 8);
+	lcd.drawLine(cx - 20, cy + 8, cx - 6, cy + 8);
+	// Down marker, right side.
+	lcd.drawLine(cx + 6, cy - 2, cx + 20, cy - 2);
+	lcd.drawLine(cx + 6, cy - 2, cx + 13, cy + 8);
+	lcd.drawLine(cx + 20, cy - 2, cx + 13, cy + 8);
+	changed = false;
+}
+
+ModernCard::ModernCard(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+	Colour fillColour, Colour pBorderColour, bool showBorder)
+	: DisplayField(py, px, pw), height(ph), borderColour(pBorderColour), borderVisible(showBorder)
+{
+	bcolour = fillColour;
+}
+
+void ModernCard::SetBorderVisible(bool visible)
+{
+	if (borderVisible != visible)
+	{
+		borderVisible = visible;
+		changed = true;
+	}
+}
+
+void ModernCard::SetBorderColour(Colour colour)
+{
+	if (borderColour != colour)
+	{
+		borderColour = colour;
+		changed = true;
+	}
+}
+
+void ModernCard::SetFillColour(Colour colour)
+{
+	if (bcolour != colour)
+	{
+		bcolour = colour;
+		changed = true;
+	}
+}
+
+void ModernCard::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	lcd.setColor(bcolour);
+	lcd.fillRoundRect(left, top, right, bottom);
+	if (borderVisible)
+	{
+		lcd.setColor(borderColour);
+		lcd.drawRoundRect(left, top, right, bottom);
+		if (width > 2 && height > 2)
+		{
+			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
+		}
+	}
+	changed = false;
+}
+
 ButtonBase::ButtonBase(PixelNumber py, PixelNumber px, PixelNumber pw)
 	: DisplayField(py, px, pw),
 	  borderColour(defaultButtonBorderColour), gradColour(defaultGradColour),
@@ -1121,6 +1577,32 @@ void DrawDirect::DrawRect(PixelNumber widthRect, PixelNumber heightRect, unsigne
 	}
 
 	lcd.drawBitmapRgbaStream(xabs, yabs, widthRect, heightRect, pixels_offset, reinterpret_cast<const uint32_t *>(pixels), pixels_count);
+	changed = false;
+}
+
+void DrawDirect::DrawRect565(PixelNumber widthRect, PixelNumber heightRect, unsigned int pixels_offset, const uint16_t *pixels, size_t pixels_count)
+{
+	if (!IsVisible() || widthRect > width || heightRect > height)
+	{
+		return;
+	}
+
+	PixelNumber xabs = x;
+	PixelNumber yabs = y;
+	if (parent)
+	{
+		xabs += parent->Xpos();
+		yabs += parent->Ypos();
+	}
+	if (widthRect < width)
+	{
+		xabs += (width - widthRect) / 2;
+	}
+	if (heightRect < height)
+	{
+		yabs += (height - heightRect) / 2;
+	}
+	lcd.drawBitmap565Stream(xabs, yabs, widthRect, heightRect, pixels_offset, pixels, pixels_count);
 	changed = false;
 }
 

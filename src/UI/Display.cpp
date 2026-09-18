@@ -712,8 +712,12 @@ void ModernTextButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffs
 
 	if (text != nullptr)
 	{
+		// Match the mock-up: an active/pressed tab fills with the Accent colour
+		// and switches to dark text for contrast, instead of keeping the same
+		// light text on a red background.
+		const Colour activeTextColour = UTFT::fromRGB(18, 22, 28);   // #12161c
 		lcd.setTransparentBackground(true);
-		lcd.setColor(fcolour);
+		lcd.setColor(pressed ? activeTextColour : fcolour);
 		lcd.setFont(font);
 		lcd.setTextPos(0, 9999, width - 8);
 		lcd.printf("%s", text);
@@ -778,7 +782,8 @@ void ModernResourceLabel::Refresh(bool full, PixelNumber xOffset, PixelNumber yO
 	}
 	const PixelNumber textWidth = lcd.getTextX();
 	const PixelNumber fontHeight = UTFT::GetFontHeight(font);
-	const PixelNumber iconWidth = (icon == ModernResourceIcon::Bed) ? 20 : 0;
+	const PixelNumber iconWidth = (icon == ModernResourceIcon::Bed) ? 26
+		: (icon == ModernResourceIcon::Chamber) ? 28 : 0;
 	const PixelNumber gap = (iconWidth != 0 && textWidth != 0) ? 6 : 0;
 	const PixelNumber groupWidth = iconWidth + gap + textWidth;
 	const PixelNumber groupLeft = left + ((width > groupWidth) ? (width - groupWidth)/2 : 2);
@@ -786,16 +791,34 @@ void ModernResourceLabel::Refresh(bool full, PixelNumber xOffset, PixelNumber yO
 	if (icon == ModernResourceIcon::Bed)
 	{
 		const int ix = static_cast<int>(groupLeft);
-		const int iy = static_cast<int>(top + ((height > 20) ? (height - 20)/2 : 0));
-		// Bed plate.
-		lcd.fillRoundRect(ix, iy + 15, ix + 19, iy + 19);
+		const int iy = static_cast<int>(top + ((height > 26) ? (height - 26)/2 : 0));
+		// Bed plate. Scaled 30% larger than the original 20px glyph.
+		lcd.fillRoundRect(ix, iy + 20, ix + 25, iy + 25);
 		// Three compact heat-wave strokes, matching the SVG motif without
 		// requiring a new icon asset or palette entry.
 		for (int wave = 0; wave < 3; ++wave)
 		{
-			const int wx = ix + 3 + wave * 7;
-			lcd.drawLine(wx, iy + 12, wx + 2, iy + 8);
-			lcd.drawLine(wx + 2, iy + 8, wx, iy + 4);
+			const int wx = ix + 4 + wave * 9;
+			lcd.drawLine(wx, iy + 16, wx + 3, iy + 10);
+			lcd.drawLine(wx + 3, iy + 10, wx, iy + 5);
+		}
+	}
+	else if (icon == ModernResourceIcon::Chamber)
+	{
+		// Chamber motif from the final TOOLS mock-up: a compact square with
+		// three right-facing heat/air waves inside. Keep it vector-only so the
+		// glyph follows the live foreground/Accent/fault colour.
+		const int ix = static_cast<int>(groupLeft);
+		const int iy = static_cast<int>(top + ((height > 28) ? (height - 28)/2 : 0));
+		lcd.drawRoundRect(ix + 1, iy + 1, ix + 26, iy + 26);
+		lcd.drawRoundRect(ix + 2, iy + 2, ix + 25, iy + 25);
+		for (int wave = 0; wave < 3; ++wave)
+		{
+			const int wx = ix + 8 + wave * 5;
+			lcd.drawLine(wx, iy + 7, wx + 3, iy + 10);
+			lcd.drawLine(wx + 3, iy + 10, wx + 4, iy + 14);
+			lcd.drawLine(wx + 4, iy + 14, wx + 3, iy + 18);
+			lcd.drawLine(wx + 3, iy + 18, wx, iy + 21);
 		}
 	}
 
@@ -914,10 +937,185 @@ void ModernPowerButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOff
 	const int cx = static_cast<int>(left + width/2);
 	const int cy = static_cast<int>(top + height/2) + 1;
 	lcd.setColor(fcolour);
-	lcd.drawCircle(cx, cy, 10);
-	lcd.drawCircle(cx, cy, 9);
-	lcd.drawLine(cx, cy - 13, cx, cy - 2);
-	lcd.drawLine(cx + 1, cy - 13, cx + 1, cy - 2);
+	// 25% bigger than the original r=10/length=11 glyph, and the ring/line
+	// strokes are three passes wide instead of two (50% thicker), with the
+	// tile itself left at its original size.
+	lcd.drawCircle(cx, cy, 13);
+	lcd.drawCircle(cx, cy, 12);
+	lcd.drawCircle(cx, cy, 11);
+	lcd.drawLine(cx - 1, cy - 16, cx - 1, cy - 2);
+	lcd.drawLine(cx,     cy - 16, cx,     cy - 2);
+	lcd.drawLine(cx + 1, cy - 16, cx + 1, cy - 2);
+	changed = false;
+}
+
+ModernStopButton::ModernStopButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		event_t e, LcdFont pf)
+	: SingleButton(py, px, pw), height(ph), font(pf != nullptr ? pf : DisplayField::defaultFont)
+{
+	SetEvent(e, 0);
+}
+
+void ModernStopButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const Colour railBg = UTFT::fromRGB(18, 22, 28);       // #12161c
+	const Colour stopRed = pressed ? UTFT::fromRGB(160, 39, 35) : UTFT::fromRGB(201, 50, 24); // #C93218 fixed safety red
+	const Colour stopText = UTFT::fromRGB(245, 245, 245);
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+
+	// A plain rounded-square tile (same fillRoundRect corner treatment as
+	// every other content-area tile), filled with the fixed safety red and
+	// labelled STOP, matching the mock-up rather than the earlier octagonal
+	// road-sign shape.
+	lcd.setColor(railBg);
+	lcd.fillRect(left, top, right, bottom);
+	lcd.setColor(stopRed);
+	lcd.fillRoundRect(left, top, right, bottom);
+
+	lcd.setTransparentBackground(true);
+	lcd.setColor(stopText);
+	lcd.setFont(font);
+	lcd.setTextPos(0, 9999, static_cast<PixelNumber>(width) - 12);
+	lcd.printf("STOP");
+	const PixelNumber textWidth = lcd.getTextX();
+	const PixelNumber fontHeight = UTFT::GetFontHeight(font);
+	const PixelNumber tx = left + ((width > textWidth) ? (width - textWidth) / 2 : 2);
+	const PixelNumber ty = top + ((height > fontHeight) ? (height - fontHeight) / 2 : 0);
+	lcd.setTextPos(tx, ty, right - 3);
+	lcd.printf("STOP");
+	lcd.setTransparentBackground(false);
+	changed = false;
+}
+
+
+ModernAlertNavButton::ModernAlertNavButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		event_t e)
+	: SingleButton(py, px, pw), height(ph)
+{
+	SetEvent(e, 0);
+}
+
+void ModernAlertNavButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const Colour railBg = UTFT::fromRGB(18, 22, 28);       // #12161c
+	const Colour pressedBg = UTFT::fromRGB(28, 34, 43);    // #1c222b
+	const Colour alertRed = UTFT::fromRGB(201, 50, 24);    // #C93218 semantic alert red
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+
+	lcd.setColor(pressed ? pressedBg : railBg);
+	lcd.fillRoundRect(left, top, right, bottom);
+
+	const int cx = static_cast<int>(left + width/2);
+	const int triangleTop = static_cast<int>(top) + 7;
+	const int triangleBottom = static_cast<int>(bottom) - 7;
+	const int halfWidth = 30;
+	lcd.setColor(alertRed);
+	lcd.drawLine(cx, triangleTop, cx - halfWidth, triangleBottom);
+	lcd.drawLine(cx - halfWidth, triangleBottom, cx + halfWidth, triangleBottom);
+	lcd.drawLine(cx + halfWidth, triangleBottom, cx, triangleTop);
+	// Double the outline so it reads clearly on the 7-inch panel.
+	lcd.drawLine(cx, triangleTop + 2, cx - halfWidth + 3, triangleBottom - 2);
+	lcd.drawLine(cx - halfWidth + 3, triangleBottom - 2, cx + halfWidth - 3, triangleBottom - 2);
+	lcd.drawLine(cx + halfWidth - 3, triangleBottom - 2, cx, triangleTop + 2);
+	// Soften the three sharp vertices with a small filled dot at each corner,
+	// approximating the slightly rounded triangle edges from the mock-up
+	// without needing a dedicated rounded-polygon primitive.
+	lcd.fillCircle(cx, triangleTop, 2);
+	lcd.fillCircle(cx - halfWidth, triangleBottom, 2);
+	lcd.fillCircle(cx + halfWidth, triangleBottom, 2);
+
+	// Vector exclamation mark.
+	lcd.fillRoundRect(cx - 2, triangleTop + 13, cx + 2, triangleBottom - 13);
+	lcd.fillCircle(cx, triangleBottom - 7, 2);
+	changed = false;
+}
+
+ModernMasterNavButton::ModernMasterNavButton(PixelNumber py, PixelNumber px, PixelNumber pw, PixelNumber ph,
+		MasterNavIcon pi, event_t e)
+	: SingleButton(py, px, pw), icon(pi), height(ph)
+{
+	SetEvent(e, 0);
+}
+
+void ModernMasterNavButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffset)
+{
+	if (!full && !changed)
+	{
+		return;
+	}
+
+	const Colour tileBg = UTFT::fromRGB(28, 34, 43);          // #1c222b, inactive tile
+	const Colour glyphLight = UTFT::fromRGB(154, 164, 178);   // inactive glyph
+	const Colour glyphDark = UTFT::fromRGB(18, 22, 28);       // #12161c, glyph on active fill
+	const bool active = pressed;
+	const Colour fill = active ? bcolour : tileBg;            // bcolour already carries the current Accent colour
+	const Colour glyph = active ? glyphDark : glyphLight;
+
+	const PixelNumber left = x + xOffset;
+	const PixelNumber top = y + yOffset;
+	const PixelNumber right = left + width - 1;
+	const PixelNumber bottom = top + height - 1;
+	const int cx = static_cast<int>(left + width / 2);
+	const int cy = static_cast<int>(top + height / 2);
+
+	lcd.setColor(fill);
+	lcd.fillRoundRect(left, top, right, bottom);
+	lcd.setColor(glyph);
+
+	switch (icon)
+	{
+	case MasterNavIcon::Joystick:
+		// Base, stick, and ball - matches the SVG joystick glyph.
+		lcd.fillRoundRect(cx - 13, cy + 9, cx + 13, cy + 19);
+		lcd.fillRect(cx - 2, cy - 9, cx + 2, cy + 10);
+		lcd.fillCircle(cx, cy - 13, 8);
+		break;
+
+	case MasterNavIcon::List:
+		// Three bullet-and-line rows.
+		for (int row = -1; row <= 1; ++row)
+		{
+			const int ry = cy + row * 9;
+			lcd.fillCircle(cx - 11, ry, 3);
+			lcd.fillRect(cx - 3, ry - 2, cx + 13, ry + 2);
+		}
+		break;
+
+	case MasterNavIcon::Gear:
+	default:
+		// Body, eight radial teeth, and a hole punched back to the fill
+		// colour. Scaled up slightly for the larger 76px rail tile, with
+		// rounded teeth for a less blocky silhouette than plain squares.
+		lcd.fillCircle(cx, cy, 14);
+		{
+			static const int dx[8] = { 0, 13, 18, 13, 0, -13, -18, -13 };
+			static const int dy[8] = { -18, -13, 0, 13, 18, 13, 0, -13 };
+			for (unsigned int i = 0; i < 8; ++i)
+			{
+				lcd.fillRoundRect(cx + dx[i] - 4, cy + dy[i] - 4, cx + dx[i] + 4, cy + dy[i] + 4);
+			}
+		}
+		lcd.setColor(fill);
+		lcd.fillCircle(cx, cy, 6);
+		break;
+	}
+
 	changed = false;
 }
 
@@ -948,6 +1146,40 @@ void ModernIconButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffs
 		{
 			lcd.drawRoundRect(left + 1, top + 1, right - 1, bottom - 1);
 		}
+	}
+	// Cancel/OK are drawn as vector glyphs rather than the legacy fixed-size
+	// bitmap icons, so the X and checkmark scale and stay centred cleanly at
+	// any button size (95x58, 110x78, ...) instead of looking small/off in a
+	// bigger tile. This keeps the look identical across every popup that
+	// uses IconCancel/IconOk.
+	if (icon == IconCancel || icon == IconOk)
+	{
+		const int cx = static_cast<int>(left + width / 2);
+		const int cy = static_cast<int>(top + height / 2);
+		const int span = static_cast<int>((width < height) ? width : height);
+		const int r = span / 2 - 12;
+		lcd.setColor(fcolour);
+		if (icon == IconCancel)
+		{
+			for (int o = -1; o <= 1; ++o)
+			{
+				lcd.drawLine(cx - r + o, cy - r, cx + r + o, cy + r);
+				lcd.drawLine(cx - r, cy - r + o, cx + r, cy + r + o);
+				lcd.drawLine(cx + r + o, cy - r, cx - r + o, cy + r);
+				lcd.drawLine(cx + r, cy - r + o, cx - r, cy + r + o);
+			}
+		}
+		else
+		{
+			const int shortArm = static_cast<int>(r * 0.7);
+			for (int o = -1; o <= 1; ++o)
+			{
+				lcd.drawLine(cx - shortArm, cy + o, cx - shortArm / 3, cy + r + o);
+				lcd.drawLine(cx - shortArm / 3, cy + r + o, cx + r, cy - r + o);
+			}
+		}
+		changed = false;
+		return;
 	}
 	const PixelNumber iw = GetIconWidth(icon);
 	const PixelNumber ih = GetIconHeight(icon);
@@ -994,8 +1226,8 @@ void ModernHomeButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yOffs
 	const int peakY = static_cast<int>(top) + 14;
 	const int roofY = static_cast<int>(top) + 34;
 	const int baseY = static_cast<int>(top) + height - 14;
-	const int roofHalf = 24;
-	const int wallHalf = 16;
+	const int roofHalf = 29;	// 24 * 1.2, per paneldue_home_icon_wider.svg
+	const int wallHalf = 19;	// 16 * 1.2, per paneldue_home_icon_wider.svg
 	lcd.setColor(fcolour);
 	for (int t = 0; t < 2; ++t)
 	{
@@ -1056,10 +1288,12 @@ void ModernBedCompButton::Refresh(bool full, PixelNumber xOffset, PixelNumber yO
 	lcd.drawLine(cx - 20, cy + 8, cx - 13, cy - 2);
 	lcd.drawLine(cx - 13, cy - 2, cx - 6, cy + 8);
 	lcd.drawLine(cx - 20, cy + 8, cx - 6, cy + 8);
-	// Down marker, right side.
-	lcd.drawLine(cx + 6, cy - 2, cx + 20, cy - 2);
-	lcd.drawLine(cx + 6, cy - 2, cx + 13, cy + 8);
-	lcd.drawLine(cx + 20, cy - 2, cx + 13, cy + 8);
+	// Down marker, right side, mirrored above the line (apex points down,
+	// toward the line, matching the left marker's up-and-toward-the-line
+	// language instead of sitting in the same half as the left marker).
+	lcd.drawLine(cx + 6, cy - 27, cx + 20, cy - 27);
+	lcd.drawLine(cx + 6, cy - 27, cx + 13, cy - 17);
+	lcd.drawLine(cx + 20, cy - 27, cx + 13, cy - 17);
 	changed = false;
 }
 

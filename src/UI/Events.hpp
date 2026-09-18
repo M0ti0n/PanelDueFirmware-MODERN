@@ -66,7 +66,6 @@ enum Event : uint8_t
 
 	evKey, evShift, evBackspace, evSendKeyboardCommand, evUp, evDown,
 
-	evAdjustLanguage, evSetLanguage,
 	evAdjustColours, evSetColours,
 	evBrighter, evDimmer,
 	evSetDimmingType,
@@ -92,13 +91,17 @@ enum Event : uint8_t
 	evControlToolsPower,
 	evControlToolsActiveTemp,
 	evControlToolsStandbyTemp,
+	evControlToolsHeaderTap,
 	evControlToolChangeConfirm,
 	evControlToolChangeCancel,
+	evControlHeaterOffConfirm,
+	evControlHeaterOffCancel,
 	evControlMoveStep,
 	evControlMoveJog,
 	evControlMoveHome,
 	evControlMoveBedComp,
 	evModernAlertClose,
+	evModernInfoClose,
 	evControlExtrudeSpeed,
 	evControlExtrudeDistance,
 	evControlExtrudeAction,
@@ -138,6 +141,13 @@ enum Event : uint8_t
 	evTunePopupAdjustPa,
 	evTunePopupConfirm,
 	evTunePopupCancel,
+
+	// CONTROL > MACROS controls
+	evControlMacroFile,
+	evControlMacroPageUp,
+	evControlMacroPageDown,
+	evControlMacroRunConfirm,
+	evControlMacroRunCancel,
 
 	// STATUS > JOB controls
 	evStatusJobFile,

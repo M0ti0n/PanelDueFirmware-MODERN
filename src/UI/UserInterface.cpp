@@ -83,9 +83,9 @@ static TextButton *controlPageMacroButtons[NumControlPageMacroButtons];
 static String<controlPageMacroTextLength> controlPageMacroText[NumControlPageMacroButtons];
 
 static PopupWindow *setTempPopup, *setRPMPopup, *movePopup, *extrudePopup, *fileListPopup, *macrosPopup, *fileDetailPopup, *baudPopup,
-		*volumePopup, *infoTimeoutPopup, *screensaverTimeoutPopup, *babystepAmountPopup, *feedrateAmountPopup, *areYouSurePopup, *keyboardPopup, *languagePopup, *coloursPopup, *screensaverPopup, *firmwareUpdatePopup;
+		*volumePopup, *infoTimeoutPopup, *screensaverTimeoutPopup, *babystepAmountPopup, *feedrateAmountPopup, *areYouSurePopup, *keyboardPopup, *coloursPopup, *screensaverPopup, *firmwareUpdatePopup;
 static StaticTextField *areYouSureTextField, *areYouSureQueryField;
-static DisplayField *emptyRoot, *baseRoot, *commonRoot, *controlRoot, *controlToolsRoot, *controlMovementRoot, *controlExtrusionRoot, *printRoot, *statusJobStatusRoot, *statusTuneRoot, *statusJobRoot, *statusObjectsRoot, *messageRoot, *setupRoot;
+static DisplayField *emptyRoot, *baseRoot, *commonRoot, *controlRoot, *controlToolsRoot, *controlMovementRoot, *controlExtrusionRoot, *controlMacrosRoot, *printRoot, *statusJobStatusRoot, *statusTuneRoot, *statusJobRoot, *statusObjectsRoot, *messageRoot, *setupRoot;
 static SingleButton *homeAllButton, *bedCompButton;
 static IconButtonWithText *homeButtons[MaxDisplayableAxes], *toolButtons[MaxSlots];
 
@@ -171,6 +171,11 @@ static String<12> controlToolChangeFromText;
 static String<12> controlToolChangeToText;
 static int controlToolChangeTarget = NoTool;
 
+static PopupWindow *controlHeaterOffPopup = nullptr;
+static StaticTextField *controlHeaterOffMessageField = nullptr;
+static String<40> controlHeaterOffMessageText;
+static ControlToolResource controlHeaterOffResource;
+
 // CONTROL > MOVE modern 800x480 page.
 static constexpr unsigned int ControlMoveAxisCount = 3;
 static constexpr unsigned int ControlMoveStepCount = 5;
@@ -190,18 +195,18 @@ static ModernBedCompButton *controlMoveBedCompButton = nullptr;
 static constexpr unsigned int ControlExtrudeToolsPerPage = 4;
 static constexpr unsigned int ControlExtrudeSpeedCount = 4;
 static constexpr unsigned int ControlExtrudeDistanceCount = 4;
-static const char * const controlExtrudeSpeedText[ControlExtrudeSpeedCount] = { "2 mm/s", "5 mm/s", "10 mm/s", "20 mm/s" };
+static const char * const controlExtrudeSpeedText[ControlExtrudeSpeedCount] = { "2", "5", "10", "20" };
 static const unsigned int controlExtrudeSpeedFeedrate[ControlExtrudeSpeedCount] = { 120, 300, 600, 1200 };
-static const char * const controlExtrudeDistanceText[ControlExtrudeDistanceCount] = { "10 mm", "20 mm", "50 mm", "150 mm" };
+static const char * const controlExtrudeDistanceText[ControlExtrudeDistanceCount] = { "10", "20", "50", "150" };
 static const char * const controlExtrudeDistanceParam[ControlExtrudeDistanceCount] = { "10", "20", "50", "150" };
 static unsigned int controlExtrudeToolPage = 0;
 static unsigned int controlExtrudeSelectedSpeed = 1;       // 5 mm/s, as shown in v10
 static unsigned int controlExtrudeSelectedDistance = 2;    // 50 mm, as shown in v10
-static ModernCard *controlExtrudeToolCards[ControlExtrudeToolsPerPage] = { nullptr };
-static StaticTextField *controlExtrudeToolNameFields[ControlExtrudeToolsPerPage] = { nullptr };
-static StaticTextField *controlExtrudeToolTempFields[ControlExtrudeToolsPerPage] = { nullptr };
-static String<12> controlExtrudeToolNameText[ControlExtrudeToolsPerPage];
-static String<20> controlExtrudeToolTempText[ControlExtrudeToolsPerPage];
+static ModernCard *controlExtrudeActiveToolCard = nullptr;
+static ModernResourceLabel *controlExtrudeActiveToolNameField = nullptr;
+static StaticTextField *controlExtrudeActiveToolTempField = nullptr;
+static String<12> controlExtrudeActiveToolNameText;
+static String<20> controlExtrudeActiveToolTempText;
 static ModernTextButton *controlExtrudeSpeedButtons[ControlExtrudeSpeedCount] = { nullptr };
 static ModernTextButton *controlExtrudeDistanceButtons[ControlExtrudeDistanceCount] = { nullptr };
 static ModernTextButton *controlExtrudeRetractButton = nullptr;
@@ -213,11 +218,35 @@ static float controlColdRetractTemperature = 0.0f;
 static bool controlColdExtrudeTemperatureValid = false;
 static bool controlColdRetractTemperatureValid = false;
 
+// CONTROL > MACROS modern 800x480 page. The embedded list has its own
+// FileManager viewport so it does not disturb the legacy macros popup.
+static constexpr unsigned int ControlMacroRows = 6;
+static ModernTextButton *controlMacroFileButtons[ControlMacroRows] = { nullptr };
+static ModernIconButton *controlMacroPageUpButton = nullptr;
+static ModernIconButton *controlMacroPageDownButton = nullptr;
+static PopupWindow *controlMacroRunPopup = nullptr;
+static ModernTextButton *controlMacroRunFileField = nullptr;
+static bool controlMacroCanScrollEarlier = false;
+static bool controlMacroCanScrollLater = false;
+static bool controlMacroInSubdir = false;
+static FileManager::Path controlMacroPendingFile;
+
 // Reusable modern alert popup.  MOVE is the first consumer, but it is kept
 // global so other modern pages can use the same interaction later.
 static PopupWindow *modernAlertPopup = nullptr;
-static ModernTextButton *modernAlertMessageField = nullptr;
+static StaticTextField *modernAlertMessageField = nullptr;
 static String<64> modernAlertMessageText;
+
+// Modern presentation for ordinary RRF responses and simple informational
+// notices. Rich M291 dialogs continue to use AlertPopup because they also
+// provide choices, numeric/text entry and acknowledgement semantics.
+static PopupWindow *modernInfoPopup = nullptr;
+static StaticTextField *modernInfoTitleField = nullptr;
+static StaticTextField *modernInfoTextFields[4] = { nullptr, nullptr, nullptr, nullptr };
+static ModernCard *modernInfoMessageCard = nullptr;
+static String<24> modernInfoTitleText;
+static String<(alertTextLength + 3)/4> modernInfoText[4];
+static bool displayingModernInfoPopup = false;
 
 static constexpr unsigned int StatusObjectsPerPage = 5;
 static constexpr unsigned int StatusMaxObjects = 20;       // RRF 3.6 exposes up to 20 build objects on Duet 2
@@ -550,7 +579,7 @@ static StaticTextField *nameField, *statusField;
 static StaticTextField *screensaverText;
 static IntegerButton *activeTemps[MaxSlots], *standbyTemps[MaxSlots];
 static IntegerButton *spd, *extrusionFactors[MaxSlots], *fanSpeed, *baudRateButton, *volumeButton, *infoTimeoutButton, *screensaverTimeoutButton, *feedrateAmountButton;
-static TextButton *languageButton, *coloursButton, *dimmingTypeButton, *heaterCombiningButton, *logLevelButton;
+static TextButton *coloursButton, *dimmingTypeButton, *heaterCombiningButton, *logLevelButton;
 static TextButtonWithLabel *babystepAmountButton;
 static SingleButton *moveButton, *extrudeButton, *macroButton;
 static PopupWindow *babystepPopup;
@@ -559,10 +588,20 @@ static CharButtonRow *keyboardRows[4];
 static const char* _ecv_array const * _ecv_array currentKeyboard;
 static void (*keyboardDataHandler)(const char *data) = nullptr;
 
-constexpr PixelNumber masterTabWidth = (DISPLAY_X == 480) ? 84 : 132;
+constexpr PixelNumber masterTabWidth = (DISPLAY_X == 480) ? 84 : 90;
 constexpr PixelNumber contentLeft = masterTabWidth + margin;
 constexpr PixelNumber contentWidth = DisplayX - contentLeft - margin;
-constexpr PixelNumber contentTop = buttonHeight;
+// Top sub-tab row height for the 800x480 modern UI (taller than the shared
+// buttonHeight used by many other rows, per the mock-up). contentTop tracks
+// it directly so page content still starts right below the tab row.
+constexpr PixelNumber topTabHeight = (DISPLAY_X == 800) ? 56 : buttonHeight;
+constexpr PixelNumber contentTop = topTabHeight;
+// The top tab row itself extends further left than the page content below
+// it, stopping only 20px short of the STOP/rail icon column (matching the
+// 20px gap already used between the CONTROL/STATUS/SYSTEM rail tiles), so
+// it visually reaches toward STOP rather than starting at contentLeft.
+constexpr PixelNumber topTabRowLeft = (DISPLAY_X == 800) ? 103 : contentLeft;
+constexpr PixelNumber topTabRowWidth = (DISPLAY_X == 800) ? (DisplayX - margin - topTabRowLeft) : contentWidth;
 
 static bool IsMasterTab(const DisplayField *field)
 {
@@ -622,10 +661,20 @@ static void RelayoutLegacyFields()
 	}
 }
 
-static TextButton *AddTopTab(unsigned int index, unsigned int count, const char *label, Event event)
+static ModernTextButton *AddTopTab(unsigned int index, unsigned int count, const char *label, Event event)
 {
-	const PixelNumber width = contentWidth / count;
-	TextButton * const tab = new TextButton(0, contentLeft + index * width, width, label, event);
+	const PixelNumber width = topTabRowWidth / count;
+	const Colour tile = UTFT::fromRGB(28, 34, 43);        // #1c222b
+	const Colour text = UTFT::fromRGB(229, 232, 236);     // #e5e8ec
+	const Colour accent = UTFT::fromRGB(226, 69, 63);     // #e2453f
+
+	DisplayField::SetDefaultColours(text, tile, accent, tile, accent, accent, IconPaletteDark);
+	// No per-tab border: the mock-up distinguishes the active tab purely by
+	// its Accent fill (handled in ModernTextButton::Refresh via `pressed`),
+	// with a single shared separator line under the whole row instead of an
+	// outline around every tab.
+	ModernTextButton * const tab = new ModernTextButton(0, topTabRowLeft + index * width, width, topTabHeight,
+		label, event, 0, DEFAULT_FONT, false);
 	mgr.AddField(tab);
 	return tab;
 }
@@ -1293,79 +1342,67 @@ static void CreateColoursPopup(const ColourScheme& colours)
 	}
 }
 
-// Create the language popup (currently only affects the keyboard layout)
-static void CreateLanguagePopup(const ColourScheme& colours)
-{
-	languagePopup = new PopupWindow(popupBarHeight, fullPopupWidth, colours.popupBackColour, colours.popupBorderColour);
-	DisplayField::SetDefaultColours(colours.popupButtonTextColour, colours.popupButtonBackColour);
-	PixelNumber step = (fullPopupWidth - 2 * popupSideMargin + popupFieldSpacing)/NumLanguages;
-	for (unsigned int i = 0; i < NumLanguages; ++i)
-	{
-		languagePopup->AddField(new TextButton(popupSideMargin, popupSideMargin + i * step, step - popupFieldSpacing, LanguageTables[i].languageName, evAdjustLanguage, i));
-	}
-}
-
 // Create the pop-up keyboard
-static void CreateKeyboardPopup(uint32_t language, ColourScheme colours)
+//
+// The geometry intentionally remains identical to the legacy 800x480 keyboard
+// so the existing language, Shift, command-history and M291 text-entry logic can
+// be reused. The presentation follows paneldue_keyboard_popup_mockup(1).svg.
+static void CreateKeyboardPopup(ColourScheme colours)
 {
+	UNUSED(colours);
 	static const char* _ecv_array const keysEN[8] = { "1234567890-+", "QWERTYUIOP[]", "ASDFGHJKL:@", "ZXCVBNM,./", "!\"#$%^&*()_=", "qwertyuiop{}", "asdfghjkl;'", "zxcvbnm<>?" };
-	static const char* _ecv_array const keysDE[8] = { "1234567890-+", "QWERTZUIOP[]", "ASDFGHJKL:@", "YXCVBNM,./", "!\"#$%^&*()_=", "qwertzuiop{}", "asdfghjkl;'", "yxcvbnm<>?" };
-	static const char* _ecv_array const keysFR[8] = { "1234567890-+", "AZERTWUIOP[]", "QSDFGHJKLM@", "YXCVBN.,:/", "!\"#$%^&*()_=", "azertwuiop{}", "qsdfghjklm'", "yxcvbn<>;?" };
-	static const char* _ecv_array const * const keyboards[] = {
-			keysEN,	// English
-			keysDE,	// German
-			keysFR,	// French
-			keysEN,	// Spanish
-			keysEN,	// Czech
-			keysEN,	// Italian
-			keysEN,	// Dutch
-			keysEN,	// Polish
-#if USE_CYRILLIC_CHARACTERS
-			keysEN,	// Ukrainian
-			keysEN,	// Russian
-#elif USE_JAPANESE_CHARACTERS
-			keysEN, // Japanese
-#endif
-	};
 
-	static_assert(ARRAY_SIZE(keyboards) >= NumLanguages, "Wrong number of keyboard entries");
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);         // #12161c
+	const Colour tile = UTFT::fromRGB(28, 34, 43);           // #1c222b
+	const Colour text = UTFT::fromRGB(229, 232, 236);        // #e5e8ec
+	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);  // #3b434f
+	const Colour accent = UTFT::fromRGB(226, 69, 63);        // #e2453f
 
-	keyboardPopup = new StandardPopupWindow(keyboardPopupHeight, keyboardPopupWidth, colours.popupBackColour, colours.popupBorderColour, colours.popupInfoTextColour, colours.buttonImageBackColour, nullptr, keyboardTopMargin);
+	// Use flat modern button colours. The legacy CharButtonRow is retained because
+	// it stores an entire 12-key row in one object, saving RAM compared with 48
+	// individual key objects.
+	DisplayField::SetDefaultColours(text, tile, neutralBorder, tile, tile, tile, IconPaletteDark);
+	keyboardPopup = new StandardPopupWindow(keyboardPopupHeight, keyboardPopupWidth,
+		pageBg, accent, text, tile, nullptr, keyboardTopMargin);
 
-	// Add the text area in which the command is built
-	DisplayField::SetDefaultColours(colours.popupInfoTextColour, colours.popupInfoBackColour);		// need a different background colour
-	userCommandField = new TextField(keyboardTopMargin + labelRowAdjust, popupSideMargin, keyboardPopupWidth - 2 * popupSideMargin - closeButtonWidth - popupFieldSpacing, TextAlignment::Left, nullptr, "_");
-	userCommandField->SetLabel(userCommandBuffers[currentUserCommandBuffer].c_str());	// set up to display the current user command
+	// Input card from the SVG. The TextField sits on top of the card so all of the
+	// existing console/M291 text buffer handling remains unchanged.
+	DisplayField::SetDefaultColours(text, tile);
+	userCommandField = new TextField(keyboardTopMargin + labelRowAdjust, popupSideMargin + 8,
+		keyboardPopupWidth - 2 * popupSideMargin - closeButtonWidth - popupFieldSpacing - 8,
+		TextAlignment::Left, nullptr, "_");
+	userCommandField->SetLabel(userCommandBuffers[currentUserCommandBuffer].c_str());
 	keyboardPopup->AddField(userCommandField);
+	keyboardPopup->AddField(new ModernCard(keyboardTopMargin + labelRowAdjust, popupSideMargin,
+		keyboardPopupWidth - 2 * popupSideMargin - closeButtonWidth - popupFieldSpacing,
+		rowTextHeight, tile, neutralBorder, true));
 
-	if (language >= NumLanguages)
-	{
-		language = 0;
-	}
-
-	currentKeyboard = keyboards[language];
+	currentKeyboard = keysEN;
 	PixelNumber row = keyboardTopMargin + keyButtonVStep;
 
+	// Flat dark key tiles with neutral outlines. The positions are unchanged and
+	// therefore match the uploaded 800x324 keyboard SVG exactly.
+	DisplayField::SetDefaultColours(text, tile, neutralBorder, tile, tile, tile, IconPaletteDark);
 	for (size_t i = 0; i < 4; ++i)
 	{
-		DisplayField::SetDefaultColours(colours.popupButtonTextColour, colours.popupButtonBackColour);
-		// New code using CharButtonRow to economise on RAM at the expense of more flash memory usage
 		const PixelNumber column = popupSideMargin + (i * keyButtonHStep)/3;
 		keyboardRows[i] = new CharButtonRow(row, column, keyButtonWidth, keyButtonHStep, currentKeyboard[i], evKey);
 		keyboardPopup->AddField(keyboardRows[i]);
-		DisplayField::SetDefaultColours(colours.popupButtonTextColour, colours.buttonImageBackColour);
 		switch (i)
 		{
 		case 0:
-			keyboardPopup->AddField(new IconButton(row, keyboardPopupWidth - popupSideMargin - (5 * keyButtonWidth)/4, (5 * keyButtonWidth)/4, IconBackspace, evBackspace));
+			keyboardPopup->AddField(new IconButton(row, keyboardPopupWidth - popupSideMargin - (5 * keyButtonWidth)/4,
+				(5 * keyButtonWidth)/4, IconBackspace, evBackspace));
 			break;
 
 		case 2:
-			keyboardPopup->AddField(new TextButton(row, keyboardPopupWidth - popupSideMargin - (3 * keyButtonWidth)/2, (3 * keyButtonWidth)/2, UP_ARROW, evUp));
+			keyboardPopup->AddField(new TextButton(row, keyboardPopupWidth - popupSideMargin - (3 * keyButtonWidth)/2,
+				(3 * keyButtonWidth)/2, UP_ARROW, evUp));
 			break;
 
 		case 3:
-			keyboardPopup->AddField(new TextButton(row, keyboardPopupWidth - popupSideMargin - (3 * keyButtonWidth)/2, (3 * keyButtonWidth)/2, DOWN_ARROW, evDown));
+			keyboardPopup->AddField(new TextButton(row, keyboardPopupWidth - popupSideMargin - (3 * keyButtonWidth)/2,
+				(3 * keyButtonWidth)/2, DOWN_ARROW, evDown));
 			break;
 
 		default:
@@ -1374,16 +1411,30 @@ static void CreateKeyboardPopup(uint32_t language, ColourScheme colours)
 		row += keyButtonVStep;
 	}
 
-	// Add the shift, space and enter keys
+	// Shift, Space and Enter preserve the existing behavior and exact source/SVG
+	// geometry. Shift remains sticky via the existing evShift handler.
 	const PixelNumber keyButtonHSpace = keyButtonHStep - keyButtonWidth;
 	const PixelNumber wideKeyButtonWidth = (keyboardPopupWidth - 2 * popupSideMargin - 2 * keyButtonHSpace)/5;
-	DisplayField::SetDefaultColours(colours.popupButtonTextColour, colours.popupButtonBackColour);
 	keyboardPopup->AddField(new TextButton(row, popupSideMargin, wideKeyButtonWidth, "Shift", evShift, 0));
-	keyboardPopup->AddField(new TextButton(row, popupSideMargin + wideKeyButtonWidth + keyButtonHSpace, 2 * wideKeyButtonWidth, "", evKey, (int)' '));
-	DisplayField::SetDefaultColours(colours.popupButtonTextColour, colours.buttonImageBackColour);
-	keyboardPopup->AddField(new IconButton(row, popupSideMargin + 3 * wideKeyButtonWidth + 2 * keyButtonHSpace, wideKeyButtonWidth, IconEnter, evSendKeyboardCommand));
+	keyboardPopup->AddField(new TextButton(row, popupSideMargin + wideKeyButtonWidth + keyButtonHSpace,
+		2 * wideKeyButtonWidth, "", evKey, (int)' '));
+	keyboardPopup->AddField(new IconButton(row, popupSideMargin + 3 * wideKeyButtonWidth + 2 * keyButtonHSpace,
+		wideKeyButtonWidth, IconEnter, evSendKeyboardCommand));
+
+	// Add the inset frames last. Window::AddField prepends fields, so these render
+	// before the controls and form the SVG's 4 px Accent frame plus neutral inset.
+	keyboardPopup->AddField(new ModernCard(4, 4, keyboardPopupWidth - 8, keyboardPopupHeight - 8,
+		pageBg, neutralBorder, true));
+	keyboardPopup->AddField(new ModernCard(2, 2, keyboardPopupWidth - 4, keyboardPopupHeight - 4,
+		pageBg, accent, true));
 
 	keyboardDataHandler = SendGcode;
+
+	// Do not leak the keyboard-specific flat button defaults into popups created
+	// later in CreateFields().
+	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour,
+		colours.buttonBorderColour, colours.buttonGradColour, colours.buttonPressedBackColour,
+		colours.buttonPressedGradColour, colours.pal);
 }
 
 // Create the babystep popup
@@ -1645,8 +1696,8 @@ static void RefreshStatusObjectMap()
 	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour neutral = UTFT::fromRGB(195, 202, 212);
 	const Colour accent = UTFT::fromRGB(226, 69, 63);
-	const Colour cancelledFill = UTFT::fromRGB(192, 57, 47);
-	const Colour cancelledText = UTFT::fromRGB(58, 15, 12);
+	const Colour cancelledFill = UTFT::fromRGB(201, 50, 24);
+	const Colour cancelledText = UTFT::fromRGB(36, 36, 36);
 
 	float xMin = 0.0f, xMax = 0.0f, yMin = 0.0f, yMax = 0.0f;
 	const bool boundsValid = GetStatusObjectBedBounds(xMin, xMax, yMin, yMax);
@@ -1753,8 +1804,8 @@ static void RefreshStatusObjectRows()
 	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour accent = UTFT::fromRGB(226, 69, 63);
-	const Colour cancelledFill = UTFT::fromRGB(192, 57, 47);
-	const Colour cancelledText = UTFT::fromRGB(58, 15, 12);
+	const Colour cancelledFill = UTFT::fromRGB(201, 50, 24);
+	const Colour cancelledText = UTFT::fromRGB(36, 36, 36);
 
 	for (unsigned int row = 0; row < StatusObjectsPerPage; ++row)
 	{
@@ -1863,8 +1914,8 @@ static void CreateStatusObjectCancelPopup()
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
 	const Colour cancelRed = UTFT::fromRGB(226, 69, 63);
-	const Colour cancelFill = UTFT::fromRGB(192, 57, 47);
-	const Colour confirmGreen = UTFT::fromRGB(164, 214, 94);
+	const Colour cancelFill = UTFT::fromRGB(201, 50, 24);
+	const Colour confirmGreen = UTFT::fromRGB(191, 226, 62);
 
 	statusObjectCancelPopup = new PopupWindow(460, 610, pageBg, cancelRed);
 	DisplayField::SetDefaultFont(DEFAULT_FONT);
@@ -1879,9 +1930,9 @@ static void CreateStatusObjectCancelPopup()
 	statusObjectCancelName->SetBorderColour(neutralBorder);
 	statusObjectCancelPopup->AddField(statusObjectCancelName);
 
-	DisplayField::SetDefaultColours(text, cancelFill);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelFill);
 	statusObjectCancelPopup->AddField(new ModernIconButton(320, 150, 140, 80, IconCancel, evStatusObjectCancelClose));
-	DisplayField::SetDefaultColours(text, confirmGreen);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
 	statusObjectCancelPopup->AddField(new ModernIconButton(320, 320, 140, 80, IconOk, evStatusObjectCancelConfirm));
 	DisplayField::SetDefaultFont(DEFAULT_FONT);
 }
@@ -1970,14 +2021,35 @@ static void CreateStatusObjectsTabFields(const ColourScheme& colours)
 #endif
 }
 
-// Create the fields for the Message tab
+// Create the fields for the Message/Console tab
 static void CreateMessageTabFields(const ColourScheme& colours)
 {
 	mgr.SetRoot(baseRoot);
+#if DISPLAY_X == 800
+	UNUSED(colours);
+	// Modern SYSTEM > CONSOLE. Keep the proven legacy message-log geometry and
+	// behaviour, but use the modern dark palette and remove the redundant
+	// "Messages" heading because the CONSOLE sub-tab already identifies the page.
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);        // #12161c
+	const Colour tile = UTFT::fromRGB(28, 34, 43);          // #1c222b
+	const Colour text = UTFT::fromRGB(229, 232, 236);       // #e5e8ec
+	const Colour accent = UTFT::fromRGB(226, 69, 63);       // #e2453f
+
+	DisplayField::SetDefaultColours(text, tile, accent, tile, tile, tile, IconPaletteDark);
+	ModernIconButton * const consoleKeyboardButton = new ModernIconButton(
+		margin, DisplayX - margin - keyboardButtonWidth, keyboardButtonWidth, buttonHeight,
+		IconKeyboard, evKeyboard, 0, true);
+	consoleKeyboardButton->SetBorderColour(accent);
+	mgr.AddField(consoleKeyboardButton);
+
+	DisplayField::SetDefaultColours(text, pageBg);
+#else
 	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonImageBackColour);
-	mgr.AddField(new IconButton(margin,  DisplayX - margin - keyboardButtonWidth, keyboardButtonWidth, IconKeyboard, evKeyboard));
+	mgr.AddField(new IconButton(margin, DisplayX - margin - keyboardButtonWidth, keyboardButtonWidth, IconKeyboard, evKeyboard));
 	DisplayField::SetDefaultColours(colours.labelTextColour, colours.defaultBackColour);
 	mgr.AddField(new StaticTextField(margin + labelRowAdjust, margin, DisplayX - 2 * margin - keyboardButtonWidth, TextAlignment::Centre, strings->messages));
+#endif
+
 	PixelNumber row = firstMessageRow;
 	for (unsigned int r = 0; r < numMessageRows; ++r)
 	{
@@ -1993,7 +2065,7 @@ static void CreateMessageTabFields(const ColourScheme& colours)
 }
 
 // Create the fields for the Setup tab
-static void CreateSetupTabFields(uint32_t language, const ColourScheme& colours)
+static void CreateSetupTabFields(const ColourScheme& colours)
 {
 	mgr.SetRoot(baseRoot);
 	DisplayField::SetDefaultColours(colours.labelTextColour, colours.defaultBackColour);
@@ -2007,7 +2079,6 @@ static void CreateSetupTabFields(uint32_t language, const ColourScheme& colours)
 	baudRateButton->SetValue(nvData.GetBaudRate());
 	volumeButton = AddIntegerButton(row3, 1, 3, strings->volume, nullptr, evSetVolume);
 	volumeButton->SetValue(nvData.GetVolume());
-	languageButton = AddTextButton(row3, 2, 3, LanguageTables[language].languageName, evSetLanguage, nullptr);
 	AddTextButton(row4, 0, 3, strings->calibrateTouch, evCalTouch, nullptr);
 	AddTextButton(row4, 1, 3, strings->mirrorDisplay, evInvertX, nullptr);
 	AddTextButton(row4, 2, 3, strings->invertDisplay, evInvertY, nullptr);
@@ -2040,13 +2111,46 @@ static void CreateCommonFields(const ColourScheme& colours)
 {
 	DisplayField::SetDefaultColours(colours.buttonTextColour, colours.buttonTextBackColour, colours.buttonBorderColour, colours.buttonGradColour,
 									colours.buttonPressedBackColour, colours.buttonPressedGradColour, colours.pal);
-	const PixelNumber masterWidth = masterTabWidth - 2 * margin;
-	tabControl = new TextButton(margin, margin, masterWidth, "CONTROL", evTabControl);
-	tabStatus = new TextButton(DisplayY/3 - buttonHeight/2, margin, masterWidth, "STATUS", evTabStatus);
-	tabSystem = new TextButton((2 * DisplayY)/3 - buttonHeight/2, margin, masterWidth, "SYSTEM", evTabSystem);
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);      // #12161c
+	const Colour tile = UTFT::fromRGB(28, 34, 43);        // #1c222b
+	const Colour text = UTFT::fromRGB(229, 232, 236);     // #e5e8ec
+	const Colour accent = UTFT::fromRGB(226, 69, 63);     // #e2453f
+
+	DisplayField::SetDefaultColours(text, tile, accent, tile, accent, accent, IconPaletteDark);
+#if DISPLAY_X == 800
+	// Exact rail geometry: STOP 76x68 at (7,5); CONTROL/STATUS/SYSTEM/ALERT
+	// all 76x76, each 20px below the previous one's bottom edge (33px below
+	// STOP specifically, matching the mock-up).
+	ModernStopButton * const stopButton = new ModernStopButton(
+		5, 7, 76, 68, evEmergencyStop, DEFAULT_FONT);
+	ModernAlertNavButton * const alertButton = new ModernAlertNavButton(
+		394, 7, 76, 76, evSystemAlerts);
+	tabControl = new ModernMasterNavButton(106, 7, 76, 76, MasterNavIcon::Joystick, evTabControl);
+	tabStatus = new ModernMasterNavButton(202, 7, 76, 76, MasterNavIcon::List, evTabStatus);
+	tabSystem = new ModernMasterNavButton(298, 7, 76, 76, MasterNavIcon::Gear, evTabSystem);
+	mgr.AddField(stopButton);
 	mgr.AddField(tabControl);
 	mgr.AddField(tabStatus);
 	mgr.AddField(tabSystem);
+	mgr.AddField(alertButton);
+	mgr.AddField(new ModernCard(0, 0, masterTabWidth, DisplayY, pageBg, pageBg, false));
+	// Thin Accent-coloured separator directly under the top tab row. Shared
+	// here on baseRoot so every page (CONTROL/STATUS/SYSTEM subtabs) inherits
+	// it without needing to add it three times.
+	mgr.AddField(new ModernCard(topTabHeight, topTabRowLeft, topTabRowWidth, 3, accent, accent, false));
+#else
+	// Preserve the compact-display rail geometry; the mock-up corner controls
+	// are specific to the 800x480 modern UI.
+	const PixelNumber masterWidth = masterTabWidth - 2 * margin;
+	const PixelNumber masterHeight = 56;
+	tabControl = new ModernMasterNavButton(margin, margin, masterWidth, masterHeight, MasterNavIcon::Joystick, evTabControl);
+	tabStatus = new ModernMasterNavButton(DisplayY/3 - masterHeight/2, margin, masterWidth, masterHeight, MasterNavIcon::List, evTabStatus);
+	tabSystem = new ModernMasterNavButton((2 * DisplayY)/3 - masterHeight/2, margin, masterWidth, masterHeight, MasterNavIcon::Gear, evTabSystem);
+	mgr.AddField(tabControl);
+	mgr.AddField(tabStatus);
+	mgr.AddField(tabSystem);
+	mgr.AddField(new ModernCard(0, 0, masterTabWidth, DisplayY, pageBg, pageBg, false));
+#endif
 }
 
 static void AddControlSubTabs()
@@ -2156,17 +2260,9 @@ static bool GetControlToolResource(unsigned int wanted, ControlToolResource& res
 
 static OM::HeaterStatus GetControlToolHeaterStatus(const ControlToolResource& resource)
 {
-	if (resource.type == ControlToolResourceType::Tool)
-	{
-		OM::Tool * const tool = OM::GetTool(resource.index);
-		if (tool != nullptr)
-		{
-			if (tool->status == OM::ToolStatus::active) return OM::HeaterStatus::active;
-			if (tool->status == OM::ToolStatus::standby) return OM::HeaterStatus::standby;
-		}
-	}
-	// For beds/chambers use the heater-index cache directly. Unlike the legacy
-	// slot mapping this also covers resources that only appear on later pages.
+	// Power/heat state must follow the actual RRF heater state for every
+	// resource, including tools. Tool selection (active/standby tool) is a
+	// separate concept and must not make the heater power tile appear on.
 	if (resource.heater >= 0 && resource.heater < static_cast<int>(JobStatusMaxHeaters))
 	{
 		return jobStatusHeaterStatus[resource.heater];
@@ -2202,11 +2298,11 @@ static void RefreshControlToolsPage()
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
 	const Colour accent = UTFT::fromRGB(226, 69, 63);
-	const Colour activePower = UTFT::fromRGB(192, 57, 47);
-	const Colour activePowerGlyph = UTFT::fromRGB(58, 15, 12);
+	const Colour activePower = UTFT::fromRGB(201, 50, 24);
+	const Colour activePowerGlyph = UTFT::fromRGB(36, 36, 36);
 	const Colour inactivePower = UTFT::fromRGB(42, 49, 60);
 	const Colour inactivePowerGlyph = UTFT::fromRGB(138, 146, 160);
-	const Colour heaterFault = UTFT::fromRGB(128, 50, 205);
+	const Colour heaterFault = UTFT::fromRGB(159, 62, 255);
 
 	const unsigned int resourceCount = CountControlToolResources();
 	const unsigned int perPage = (resourceCount > ControlToolVisibleColumns) ? ControlToolPagedColumns : ControlToolVisibleColumns;
@@ -2245,10 +2341,16 @@ static void RefreshControlToolsPage()
 		}
 		else
 		{
-			controlToolNameText[column].copy("CHAMBER");
+			// The final TOOLS mock-up uses the chamber pictogram instead of the
+			// word CHAMBER, so leave the label empty and let ModernResourceLabel
+			// centre the square/heat-wave glyph on its own.
+			controlToolNameText[column].Clear();
 		}
 		controlToolNameFields[column]->SetText(controlToolNameText[column].c_str());
-		controlToolNameFields[column]->SetIcon(resource.type == ControlToolResourceType::Bed ? ModernResourceIcon::Bed : ModernResourceIcon::None);
+		controlToolNameFields[column]->SetIcon(
+			resource.type == ControlToolResourceType::Bed ? ModernResourceIcon::Bed
+			: resource.type == ControlToolResourceType::Chamber ? ModernResourceIcon::Chamber
+			: ModernResourceIcon::None);
 
 		if (resource.heater >= 0 && resource.heater < static_cast<int>(JobStatusMaxHeaters) && jobStatusHeaterValid[resource.heater])
 		{
@@ -2285,20 +2387,12 @@ static void RefreshControlToolsPage()
 		controlToolStandbyButtons[column]->SetBorderVisible(!fault && standby);
 		controlToolStandbyButtons[column]->SetBorderColour(standby ? accent : neutralBorder);
 
-		bool powered = false;
-		bool allowPower = true;
-		if (resource.type == ControlToolResourceType::Tool)
-		{
-			powered = currentTool == resource.index;
-			const OM::PrinterStatus printerState = GetStatus();
-			allowPower = printerState != OM::PrinterStatus::printing && printerState != OM::PrinterStatus::simulating;
-		}
-		else
-		{
-			powered = active;
-		}
+		// Power tile reflects the heater itself, not whether a tool is selected.
+		// Active, standby and tuning all mean the heater is on; only OFF is gray.
+		// Fault keeps the dedicated purple override below.
+		const bool powered = state != OM::HeaterStatus::off;
 		controlToolPowerButtons[column]->SetColours(fault ? text : (powered ? activePowerGlyph : inactivePowerGlyph), fault ? heaterFault : (powered ? activePower : inactivePower));
-		controlToolPowerButtons[column]->SetEvent(allowPower ? evControlToolsPower : evNull, static_cast<int>(column));
+		controlToolPowerButtons[column]->SetEvent((powered && !fault) ? evControlToolsPower : evNull, static_cast<int>(column));
 		controlToolPowerButtons[column]->SetBorderVisible(false);
 		controlToolPowerButtons[column]->SetChanged();
 	}
@@ -2345,6 +2439,41 @@ static void OpenControlTempNumpad(unsigned int column, bool activeTarget)
 	controlTempNumpadResourceField->SetText(controlTempNumpadResourceText.c_str());
 	RefreshControlTempNumpadValue();
 	mgr.SetPopup(controlTempNumpadPopup, AutoPlace, AutoPlace);
+}
+
+static void ShowModernAlert(const char *message);
+
+static bool ValidateControlTemperatureTarget(int value, int& minValue, int& maxValue)
+{
+	switch (controlTempNumpadResource.type)
+	{
+	case ControlToolResourceType::Tool:
+		minValue = ExtruderMinTemp;
+		maxValue = ExtruderMaxTemp;
+		break;
+
+	case ControlToolResourceType::Bed:
+		minValue = BedMinTemp;
+		maxValue = BedMaxTemp;
+		break;
+
+	case ControlToolResourceType::Chamber:
+		minValue = ChamberMinTemp;
+		maxValue = ChamberMaxTemp;
+		break;
+
+	default:
+		return false;
+	}
+
+	return value >= minValue && value <= maxValue;
+}
+
+static void ShowControlTemperatureRangeAlert(int minValue, int maxValue)
+{
+	String<64> message;
+	message.printf("Temperature range %d-%d C", minValue, maxValue);
+	ShowModernAlert(message.c_str());
 }
 
 static void SendControlTemperatureTarget()
@@ -2400,7 +2529,55 @@ static void OpenControlToolChange(int targetTool)
 	mgr.SetPopup(controlToolChangePopup, AutoPlace, AutoPlace);
 }
 
-static void HandleControlToolPower(unsigned int column)
+// Confirmation gate for turning an already-on heater off (Bed/Chamber; Tool
+// power taps go through OpenControlToolChange instead, unchanged). Stores
+// which resource to act on so the Confirm button knows what to send.
+static void OpenControlHeaterOff(const ControlToolResource& resource)
+{
+	controlHeaterOffResource = resource;
+	if (resource.type == ControlToolResourceType::Tool)
+	{
+		controlHeaterOffMessageText.printf("Turn the T%d heater OFF?", resource.index);
+	}
+	else if (resource.type == ControlToolResourceType::Bed)
+	{
+		controlHeaterOffMessageText.copy("Turn the BED heater OFF?");
+	}
+	else if (resource.type == ControlToolResourceType::Chamber)
+	{
+		controlHeaterOffMessageText.copy("Turn the CHAMBER heater OFF?");
+	}
+	else
+	{
+		return;
+	}
+	controlHeaterOffMessageField->SetValue(controlHeaterOffMessageText.c_str());
+	mgr.SetPopup(controlHeaterOffPopup, AutoPlace, AutoPlace);
+}
+
+static void HandleControlHeaterOffConfirm()
+{
+	const ControlToolResource resource = controlHeaterOffResource;
+	if (resource.type == ControlToolResourceType::Tool)
+	{
+		const bool useM568 = GetFirmwareFeatures().IsBitSet(m568TempAndRPM);
+		SerialIo::Sendf("%s P%d S0\n", useM568 ? "M568" : "G10", resource.index);
+	}
+	else if (resource.type == ControlToolResourceType::Bed)
+	{
+		SerialIo::Sendf("M144 P%d\n", resource.index);
+	}
+	else if (resource.type == ControlToolResourceType::Chamber)
+	{
+		SerialIo::Sendf("M141 P%d S-274\n", resource.index);
+	}
+	mgr.ClearPopup();
+}
+
+// Tapping the T#/BED/CHAMBER header tile itself. Only a Tool resource has a
+// "change tool" action; Bed/Chamber headers are informational only and this
+// is a no-op for them.
+static void HandleControlToolHeaderTap(unsigned int column)
 {
 	if (column >= ControlToolVisibleColumns) return;
 	const ControlToolResource resource = controlToolVisibleResource[column];
@@ -2408,25 +2585,36 @@ static void HandleControlToolPower(unsigned int column)
 	{
 		OpenControlToolChange(resource.index);
 	}
+}
+
+static void HandleControlToolPower(unsigned int column)
+{
+	if (column >= ControlToolVisibleColumns) return;
+	const ControlToolResource resource = controlToolVisibleResource[column];
+	// The power button only ever turns a heater OFF (via confirmation).
+	// Turning a heater on is exclusively done by tapping the active or
+	// standby temperature tile, which opens the numpad to pick a target.
+	// Permit OFF from any real powered state (active/standby/tuning), while
+	// ignoring already-off and faulted heaters.
+	const OM::HeaterStatus heaterState = GetControlToolHeaterStatus(resource);
+	if (heaterState == OM::HeaterStatus::off || heaterState == OM::HeaterStatus::fault) return;
+	if (resource.type == ControlToolResourceType::Tool)
+	{
+		const OM::Tool * const tool = OM::GetTool(resource.index);
+		if (tool == nullptr) return;
+		OpenControlHeaterOff(resource);
+	}
 	else if (resource.type == ControlToolResourceType::Bed)
 	{
 		const OM::Bed * const bed = OM::GetBed(resource.index);
 		if (bed == nullptr) return;
-		if (GetControlToolHeaterStatus(resource) == OM::HeaterStatus::active)
-		{
-			SerialIo::Sendf("M144 P%d\n", resource.index);
-		}
-		else
-		{
-			SerialIo::Sendf("M140 P%d S%d\n", resource.index, GetControlToolTarget(resource, true));
-		}
+		OpenControlHeaterOff(resource);
 	}
 	else if (resource.type == ControlToolResourceType::Chamber)
 	{
 		const OM::Chamber * const chamber = OM::GetChamber(resource.index);
 		if (chamber == nullptr) return;
-		SerialIo::Sendf("M141 P%d S%d\n", resource.index,
-			GetControlToolHeaterStatus(resource) == OM::HeaterStatus::active ? -274 : GetControlToolTarget(resource, true));
+		OpenControlHeaterOff(resource);
 	}
 }
 
@@ -2437,53 +2625,108 @@ static void CreateControlToolsPopups(const ColourScheme& colours)
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
 	const Colour accent = UTFT::fromRGB(226, 69, 63);
-	const Colour cancelRed = UTFT::fromRGB(192, 57, 47);
-	const Colour confirmGreen = UTFT::fromRGB(164, 214, 94);
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);
+	const Colour confirmGreen = UTFT::fromRGB(191, 226, 62);
 
-	// Shared numeric temperature keypad, based on paneldue_numpad_popup_mockup_v9.svg.
-	controlTempNumpadPopup = new PopupWindow(362, 450, pageBg, accent);
-	DisplayField::SetDefaultFont(glcd19x21);
+	// Shared modern numeric keypad. Every tile (digits, ./-, backspace,
+	// cancel, confirm) is now 110x78 -- the same size as the standard
+	// Trash/X/tick action buttons -- instead of the original 95x58, with a
+	// consistent 10px horizontal / 6px vertical gap between tiles. The whole
+	// block (470x330) is centred in the 660x460 frame: 95px left/right
+	// margin, and a 29px top margin above the value row / 29px below the
+	// bottom row (52+20+330=402 tall, (460-402)/2=29).
+	controlTempNumpadPopup = new PopupWindow(460, 660, pageBg, pageBg);
+	DisplayField::SetDefaultFont(glcd28x32);
 	DisplayField::SetDefaultColours(text, tile);
-	controlTempNumpadValueField = new StaticTextField(35, 36, 185, TextAlignment::Left, "0");
+	controlTempNumpadValueField = new StaticTextField(44, 141, 185, TextAlignment::Left, "0");
 	controlTempNumpadPopup->AddField(controlTempNumpadValueField);
-	controlTempNumpadPopup->AddField(new StaticTextField(35, 245, 40, TextAlignment::Right, DEGREE_SYMBOL "C"));
-	controlTempNumpadPopup->AddField(new ModernCard(20, 20, 280, 52, tile, neutralBorder, true));
-	controlTempNumpadResourceField = new ModernTextButton(20, 310, 120, 52, "T0", evNull, 0, glcd19x21);
+	controlTempNumpadPopup->AddField(new StaticTextField(44, 350, 40, TextAlignment::Right, DEGREE_SYMBOL "C"));
+	controlTempNumpadPopup->AddField(new ModernCard(29, 125, 280, 52, tile, neutralBorder, true));
+	controlTempNumpadResourceField = new ModernTextButton(29, 415, 120, 52, "T0", evNull, 0, glcd28x32);
 	controlTempNumpadPopup->AddField(controlTempNumpadResourceField);
 
 	static const char * const digitLabels[10] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 	for (unsigned int d = 1; d <= 9; ++d)
 	{
 		const unsigned int i = d - 1;
-		const PixelNumber x = 20 + (i % 3) * 105;
-		const PixelNumber y = 92 + (i / 3) * 64;
-		controlTempNumpadPopup->AddField(new ModernTextButton(y, x, 95, 58, digitLabels[d], evNumericKey, static_cast<int>(d), glcd19x21));
+		const PixelNumber x = 95 + (i % 3) * 120;
+		const PixelNumber y = 101 + (i / 3) * 84;
+		controlTempNumpadPopup->AddField(new ModernTextButton(y, x, 110, 78, digitLabels[d], evNumericKey, static_cast<int>(d), glcd28x32));
 	}
-	controlTempNumpadPopup->AddField(new ModernTextButton(284, 125, 95, 58, digitLabels[0], evNumericKey, 0, glcd19x21));
-	controlTempNumpadPopup->AddField(new ModernIconButton(92, 335, 95, 58, IconBackspace, evNumericBack));
-	DisplayField::SetDefaultColours(pageBg, cancelRed);
-	controlTempNumpadPopup->AddField(new ModernIconButton(156, 335, 95, 58, IconCancel, evNumericCancel));
-	DisplayField::SetDefaultColours(pageBg, confirmGreen);
-	controlTempNumpadPopup->AddField(new ModernIconButton(220, 335, 95, 58, IconOk, evNumericOk));
 
-	// Tool-change confirmation popup, based on paneldue_tool_change_popup_mockup_v2.svg.
-	controlToolChangePopup = new PopupWindow(450, 600, pageBg, accent);
-	DisplayField::SetDefaultColours(text, pageBg);
-	controlToolChangePopup->AddField(new StaticTextField(65, 30, 540, TextAlignment::Centre, "This operation requires tool"));
-	controlToolChangePopup->AddField(new StaticTextField(105, 30, 540, TextAlignment::Centre, "change:"));
+	// Bottom row follows v10 exactly: decimal / zero / minus. Decimal and minus
+	// are deliberately non-interactive for heater temperatures.
+	const Colour dimText = UTFT::fromRGB(154, 164, 178);
+	DisplayField::SetDefaultColours(dimText, tile);
+	controlTempNumpadPopup->AddField(new ModernTextButton(353, 95, 110, 78, ".", evNull, 0, glcd28x32));
 	DisplayField::SetDefaultColours(text, tile);
-	controlToolChangeFromField = new ModernTextButton(180, 120, 140, 70, "OFF", evNull, 0, glcd19x21, true);
-	controlToolChangeFromField->SetBorderColour(neutralBorder);
-	controlToolChangeToField = new ModernTextButton(180, 340, 140, 70, "T0", evNull, 0, glcd19x21, true);
-	controlToolChangeToField->SetBorderColour(neutralBorder);
+	controlTempNumpadPopup->AddField(new ModernTextButton(353, 215, 110, 78, digitLabels[0], evNumericKey, 0, glcd28x32));
+	DisplayField::SetDefaultColours(dimText, tile);
+	controlTempNumpadPopup->AddField(new ModernTextButton(353, 335, 110, 78, "-", evNull, 0, glcd28x32));
+
+	// Side controls match the v10 SVG. Backspace is neutral, X is semantic red,
+	// and the check mark is semantic green.
+	DisplayField::SetDefaultColours(dimText, tile);
+	controlTempNumpadPopup->AddField(new ModernIconButton(101, 455, 110, 78, IconBackspace, evNumericBack));
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
+	controlTempNumpadPopup->AddField(new ModernIconButton(185, 455, 110, 78, IconCancel, evNumericCancel));
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
+	controlTempNumpadPopup->AddField(new ModernIconButton(269, 455, 110, 78, IconOk, evNumericOk));
+
+	// Build the SVG's 4 px inset Accent frame, now spanning the full 660x460
+	// window instead of the old 450x362 one. Add inner first because AddField
+	// prepends, making the outer frame render first and the controls render last.
+	controlTempNumpadPopup->AddField(new ModernCard(8, 8, 644, 444, pageBg, accent, true));
+	controlTempNumpadPopup->AddField(new ModernCard(6, 6, 648, 448, pageBg, accent, true));
+
+	// Tool-change confirmation popup, redesigned to the shared standard-popup
+	// shell agreed for the modern UI: a short NAME TILE (ALERT !) 35px from
+	// the top, one INFORMATION TILE (550x150) centred in the middle zone with
+	// the message and the current/target tool names, and X/tick buttons at
+	// the standard 110x78 size, 50px from the bottom, spaced by the 1/3 rule
+	// (M=189, inter-button gap=63) since there is no Trash action here.
+	controlToolChangePopup = new PopupWindow(460, 660, pageBg, accent);
+
+	// NAME TILE SHORT: 250x60, horizontally centred, 35px from the top.
+	DisplayField::SetDefaultColours(text, tile);
+	controlToolChangePopup->AddField(new ModernCard(35, 205, 250, 60, tile, accent, false));
+	controlToolChangePopup->AddField(new StaticTextField(55, 205, 250, TextAlignment::Centre, "ALERT !"));
+
+	// INFORMATION TILE: 550x150, horizontally centred, vertically centred in
+	// the space between the NAME TILE (bottom at 95) and the action row (top
+	// at 332): (237-150)/2 = 43.5, so the tile starts at y=139.
+	controlToolChangePopup->AddField(new ModernCard(139, 55, 550, 150, tile, neutralBorder, true));
+	controlToolChangePopup->AddField(new StaticTextField(178, 55, 550, TextAlignment::Centre, "This operation requires"));
+	controlToolChangePopup->AddField(new StaticTextField(206, 55, 550, TextAlignment::Centre, "tool change:"));
+	controlToolChangePopup->AddField(new StaticTextField(244, 280, 100, TextAlignment::Centre, ">>>"));
+	controlToolChangeFromField = new ModernTextButton(238, 130, 130, 40, "OFF", evNull, 0, glcd28x32, false);
+	controlToolChangeToField = new ModernTextButton(238, 400, 130, 40, "T0", evNull, 0, glcd28x32, false);
 	controlToolChangePopup->AddField(controlToolChangeFromField);
 	controlToolChangePopup->AddField(controlToolChangeToField);
-	DisplayField::SetDefaultColours(text, pageBg);
-	controlToolChangePopup->AddField(new StaticTextField(202, 280, 40, TextAlignment::Centre, ">"));
-	DisplayField::SetDefaultColours(pageBg, cancelRed);
-	controlToolChangePopup->AddField(new ModernIconButton(320, 145, 140, 80, IconCancel, evControlToolChangeCancel));
-	DisplayField::SetDefaultColours(pageBg, confirmGreen);
-	controlToolChangePopup->AddField(new ModernIconButton(320, 315, 140, 80, IconOk, evControlToolChangeConfirm));
+
+	// X / tick action row: fixed 110x78, 50px from the bottom (y=460-50-78=332).
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
+	controlToolChangePopup->AddField(new ModernIconButton(332, 189, 110, 78, IconCancel, evControlToolChangeCancel));
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
+	controlToolChangePopup->AddField(new ModernIconButton(332, 362, 110, 78, IconOk, evControlToolChangeConfirm));
+
+	// Heater-off confirmation popup: identical standard shell to the tool-
+	// change popup above (NAME TILE "ALERT !", one INFORMATION TILE, X/tick
+	// at the same 110x78 / 1/3-rule position), just a single dynamic message
+	// line instead of the from/to tool display. OpenControlHeaterOff() fills
+	// in "Turn the T#/BED/CHAMBER heater OFF?" depending on the resource.
+	controlHeaterOffPopup = new PopupWindow(460, 660, pageBg, accent);
+	DisplayField::SetDefaultColours(text, tile);
+	controlHeaterOffPopup->AddField(new ModernCard(35, 205, 250, 60, tile, accent, false));
+	controlHeaterOffPopup->AddField(new StaticTextField(55, 205, 250, TextAlignment::Centre, "ALERT !"));
+	controlHeaterOffPopup->AddField(new ModernCard(139, 55, 550, 150, tile, neutralBorder, true));
+	controlHeaterOffMessageField = new StaticTextField(198, 55, 550, TextAlignment::Centre, "");
+	controlHeaterOffPopup->AddField(controlHeaterOffMessageField);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
+	controlHeaterOffPopup->AddField(new ModernIconButton(332, 189, 110, 78, IconCancel, evControlHeaterOffCancel));
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
+	controlHeaterOffPopup->AddField(new ModernIconButton(332, 362, 110, 78, IconOk, evControlHeaterOffConfirm));
+
 	DisplayField::SetDefaultFont(DEFAULT_FONT);
 	UNUSED(colours);
 }
@@ -2497,37 +2740,44 @@ static void CreateControlToolsTabFields(const ColourScheme& colours)
 	const Colour muted = UTFT::fromRGB(154, 164, 178);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
 
-	DisplayField::SetDefaultFont(glcd19x21);
+	DisplayField::SetDefaultFont(glcd28x32);
 	for (unsigned int column = 0; column < ControlToolVisibleColumns; ++column)
 	{
 		const PixelNumber x = ControlX(98 + column * 140);
 		const PixelNumber w = ControlW(126);
 
 		DisplayField::SetDefaultColours(text, tile);
-		controlToolNameFields[column] = new ModernResourceLabel(100, x, w, 34, "", glcd19x21);
-		controlToolCurrentFields[column] = new StaticTextField(153, x, w, TextAlignment::Centre, "---" DEGREE_SYMBOL "C");
+		controlToolNameFields[column] = new ModernResourceLabel(96, x, w, 34, "", glcd28x32);
+		controlToolCurrentFields[column] = new StaticTextField(149, x, w, TextAlignment::Centre, "---" DEGREE_SYMBOL "C");
 		mgr.AddField(controlToolNameFields[column]);
 		mgr.AddField(controlToolCurrentFields[column]);
-		controlToolHeaderCards[column] = new ModernCard(88, x, w, 114, tile, neutralBorder, false);
+		controlToolHeaderCards[column] = new ModernCard(84, x, w, 114, tile, neutralBorder, false);
 		mgr.AddField(controlToolHeaderCards[column]);
+		// Invisible touch target over the header tile so tapping T#/BED/CHAMBER
+		// opens the tool-change confirmation. Same fill as the tile so nothing
+		// changes visually; it sits behind the name/current-temp text in the
+		// paint order (added after them here, which the linked-list renderer
+		// draws first/behind, per the AddField-prepends convention used
+		// elsewhere in this function).
+		mgr.AddField(new ModernTextButton(84, x, w, 114, nullptr, evControlToolsHeaderTap, static_cast<int>(column), DEFAULT_FONT, false));
 
 		controlToolActiveText[column].copy("0");
 		controlToolStandbyText[column].copy("0");
-		controlToolActiveButtons[column] = new ModernTemperatureButton(210, x, w, 89, controlToolActiveText[column].c_str(),
+		controlToolActiveButtons[column] = new ModernTemperatureButton(206, x, w, 89, controlToolActiveText[column].c_str(),
 			ModernTemperatureIcon::Active, evControlToolsActiveTemp, static_cast<int>(column), DEFAULT_FONT);
-		controlToolStandbyButtons[column] = new ModernTemperatureButton(307, x, w, 89, controlToolStandbyText[column].c_str(),
+		controlToolStandbyButtons[column] = new ModernTemperatureButton(303, x, w, 89, controlToolStandbyText[column].c_str(),
 			ModernTemperatureIcon::Standby, evControlToolsStandbyTemp, static_cast<int>(column), DEFAULT_FONT);
 		mgr.AddField(controlToolActiveButtons[column]);
 		mgr.AddField(controlToolStandbyButtons[column]);
 
 		DisplayField::SetDefaultColours(muted, UTFT::fromRGB(42, 49, 60));
-		controlToolPowerButtons[column] = new ModernPowerButton(404, x, w, 56, evControlToolsPower, static_cast<int>(column));
+		controlToolPowerButtons[column] = new ModernPowerButton(400, x, w, 56, evControlToolsPower, static_cast<int>(column));
 		mgr.AddField(controlToolPowerButtons[column]);
 	}
 
 	DisplayField::SetDefaultColours(text, tile);
-	controlToolPageUpButton = new ModernIconButton(192, ControlX(736), ControlW(54), 118, IconUp, evControlToolsPageUp);
-	controlToolPageDownButton = new ModernIconButton(316, ControlX(736), ControlW(54), 118, IconDown, evControlToolsPageDown);
+	controlToolPageUpButton = new ModernIconButton(188, ControlX(736), ControlW(54), 118, IconUp, evControlToolsPageUp);
+	controlToolPageDownButton = new ModernIconButton(312, ControlX(736), ControlW(54), 118, IconDown, evControlToolsPageDown);
 	mgr.AddField(controlToolPageUpButton);
 	mgr.AddField(controlToolPageDownButton);
 
@@ -2672,7 +2922,7 @@ static void ShowModernAlert(const char *message)
 		return;
 	}
 	modernAlertMessageText.copy(message != nullptr ? message : "ALERT");
-	modernAlertMessageField->SetText(modernAlertMessageText.c_str());
+	modernAlertMessageField->SetValue(modernAlertMessageText.c_str());
 	mgr.SetPopup(modernAlertPopup, AutoPlace, AutoPlace);
 }
 
@@ -2687,20 +2937,153 @@ static void CreateModernAlertPopup()
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
 	const Colour accent = UTFT::fromRGB(226, 69, 63);
-	const Colour cancelRed = UTFT::fromRGB(202, 57, 48);
-	const Colour cancelGlyph = UTFT::fromRGB(74, 15, 12);
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);
+	const Colour cancelGlyph = UTFT::fromRGB(36, 36, 36);
 
-	modernAlertPopup = new PopupWindow(460, 610, pageBg, accent);
-	DisplayField::SetDefaultFont(glcd19x21);
-	DisplayField::SetDefaultColours(text, pageBg);
-	modernAlertPopup->AddField(new StaticTextField(60, 0, 610, TextAlignment::Centre, "ALERT !"));
+	// Standard 660x460 popup shell: NAME TILE SHORT (ALERT !) 35px from the
+	// top, one INFORMATION TILE (550x150) with the message, and a single
+	// standard 110x78 X button centred (no ✓ needed -- this is dismiss-only).
+	modernAlertPopup = new PopupWindow(460, 660, pageBg, accent);
+	DisplayField::SetDefaultFont(glcd28x32);
 	DisplayField::SetDefaultColours(text, tile);
+	modernAlertPopup->AddField(new ModernCard(35, 205, 250, 60, tile, accent, false));
+	modernAlertPopup->AddField(new StaticTextField(55, 205, 250, TextAlignment::Centre, "ALERT !"));
+	modernAlertPopup->AddField(new ModernCard(139, 55, 550, 150, tile, neutralBorder, true));
 	modernAlertMessageText.copy("Printer AXIS not homed");
-	modernAlertMessageField = new ModernTextButton(160, 105, 400, 80, modernAlertMessageText.c_str(), evNull, 0, DEFAULT_FONT, true);
-	modernAlertMessageField->SetBorderColour(neutralBorder);
+	modernAlertMessageField = new StaticTextField(198, 55, 550, TextAlignment::Centre, modernAlertMessageText.c_str());
 	modernAlertPopup->AddField(modernAlertMessageField);
 	DisplayField::SetDefaultColours(cancelGlyph, cancelRed);
-	modernAlertPopup->AddField(new ModernIconButton(300, 235, 140, 80, IconCancel, evModernAlertClose));
+	modernAlertPopup->AddField(new ModernIconButton(332, 275, 110, 78, IconCancel, evModernAlertClose));
+	DisplayField::SetDefaultFont(DEFAULT_FONT);
+}
+
+
+static void SetModernInfoPopupText(const char *title, const char *text, bool isError)
+{
+	if (modernInfoPopup == nullptr || modernInfoTitleField == nullptr)
+	{
+		return;
+	}
+
+	modernInfoTitleText.copy(title != nullptr ? title : "");
+	modernInfoTitleField->SetValue(modernInfoTitleText.c_str(), true);
+
+	const char *remaining = (text != nullptr) ? text : "";
+	for (unsigned int line = 0; line < 4; ++line)
+	{
+		if (*remaining == '\0')
+		{
+			modernInfoText[line].Clear();
+		}
+		else if (line < 3)
+		{
+			const size_t splitPoint = MessageLog::FindSplitPoint(
+				remaining, modernInfoText[line].Capacity(), 500);
+			modernInfoText[line].copy(remaining);
+			modernInfoText[line].Truncate(splitPoint);
+			remaining += splitPoint;
+			while (*remaining == ' ' || *remaining == '\r' || *remaining == '\n' || *remaining == '\t')
+			{
+				++remaining;
+			}
+		}
+		else
+		{
+			modernInfoText[line].copy(remaining);
+		}
+
+		if (modernInfoTextFields[line] != nullptr)
+		{
+			modernInfoTextFields[line]->SetValue(modernInfoText[line].c_str(), true);
+		}
+	}
+
+	// The final SVG uses the same white title and neutral message-card outline
+	// for INFORMATION, MESSAGE and ERROR. The title text itself identifies the
+	// message type; the permanent red popup frame provides the semantic emphasis.
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);
+	const Colour textColour = UTFT::fromRGB(229, 232, 236);
+	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
+	modernInfoTitleField->SetColours(textColour, pageBg);
+	if (modernInfoMessageCard != nullptr)
+	{
+		modernInfoMessageCard->SetBorderColour(neutralBorder);
+	}
+	UNUSED(isError);
+}
+
+static void ShowModernInfoPopup(const char *title, const char *text, bool isError)
+{
+	if (modernInfoPopup == nullptr)
+	{
+		return;
+	}
+
+	// A normal response is allowed to replace an older non-modal legacy alert.
+	// Clear that popup first so the modern notice does not get nested on top.
+	if (mgr.IsPopupActive(alertPopup))
+	{
+		mgr.ClearPopup(true, alertPopup);
+	}
+
+	SetModernInfoPopupText(title, text, isError);
+	mgr.SetPopup(modernInfoPopup, AutoPlace, AutoPlace);
+	displayingModernInfoPopup = true;
+}
+
+static void CreateModernInfoPopup()
+{
+	if (modernInfoPopup != nullptr)
+	{
+		return;
+	}
+
+	// Geometry and colours follow paneldue_information_popup_mockup.svg exactly.
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);          // #12161c
+	const Colour tile = UTFT::fromRGB(28, 34, 43);            // #1c222b
+	const Colour text = UTFT::fromRGB(229, 232, 236);         // #e5e8ec
+	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);   // #3b434f
+	const Colour accentRed = UTFT::fromRGB(226, 69, 63);      // #e2453f
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);      // #C93218
+	const Colour cancelGlyph = UTFT::fromRGB(36, 36, 36);     // #242424
+
+	// Hide PopupWindow's own outer border; the two inset ModernCards below make
+	// the 4 px red frame at x/y 6 from the SVG.
+	modernInfoPopup = new PopupWindow(460, 610, pageBg, pageBg);
+
+	// 32 px title, centered at the SVG's y=90 baseline.
+	DisplayField::SetDefaultFont(DEFAULT_FONT);
+	DisplayField::SetDefaultColours(text, pageBg);
+	modernInfoTitleText.copy("");
+	modernInfoTitleField = new StaticTextField(58, 0, 610, TextAlignment::Centre, modernInfoTitleText.c_str());
+	modernInfoPopup->AddField(modernInfoTitleField);
+
+	// Four 20/21 px message rows inside the 530 x 150 card.
+	DisplayField::SetDefaultFont(glcd19x21);
+	DisplayField::SetDefaultColours(text, tile);
+	for (unsigned int line = 0; line < 4; ++line)
+	{
+		modernInfoText[line].Clear();
+		modernInfoTextFields[line] = new StaticTextField(
+			154 + static_cast<PixelNumber>(line * 28), 55, 500,
+			TextAlignment::Centre, modernInfoText[line].c_str());
+		modernInfoPopup->AddField(modernInfoTextFields[line]);
+	}
+
+	// 140 x 80 dismiss button at x=235, y=320.
+	DisplayField::SetDefaultColours(cancelGlyph, cancelRed);
+	modernInfoPopup->AddField(new ModernIconButton(320, 235, 140, 80, IconCancel, evModernInfoClose));
+
+	// Message tile: x=40 y=140 w=530 h=150.
+	modernInfoMessageCard = new ModernCard(140, 40, 530, 150, tile, neutralBorder, true);
+	modernInfoPopup->AddField(modernInfoMessageCard);
+
+	// Build the SVG's 4 px red frame from two 2 px modern outlines. Add the
+	// inner frame first because Window::AddField prepends; this makes the outer
+	// frame paint first, then the inner one, while content paints on top.
+	modernInfoPopup->AddField(new ModernCard(8, 8, 594, 444, pageBg, accentRed, true));
+	modernInfoPopup->AddField(new ModernCard(6, 6, 598, 448, pageBg, accentRed, true));
+
 	DisplayField::SetDefaultFont(DEFAULT_FONT);
 }
 
@@ -2722,15 +3105,18 @@ static void CreateControlMovementTabFields(const ColourScheme& colours)
 		const PixelNumber x = ControlX(posSvgX[axisSlot]);
 		const PixelNumber w = ControlW(200);
 		DisplayField::SetDefaultColours(muted, tile);
+		DisplayField::SetDefaultFont(glcd19x21);
 		mgr.AddField(new StaticTextField(97, x + ControlW(16), ControlW(44), TextAlignment::Left, axisLabels[axisSlot]));
 		controlMovePositionText[axisSlot].copy("---");
 		DisplayField::SetDefaultColours(text, tile);
+		DisplayField::SetDefaultFont(glcd28x32);
 		controlMovePositionFields[axisSlot] = new StaticTextField(97, x + ControlW(55), w - ControlW(69), TextAlignment::Right, controlMovePositionText[axisSlot].c_str());
 		mgr.AddField(controlMovePositionFields[axisSlot]);
 		mgr.AddField(new ModernCard(82, x, w, 52, tile, neutralBorder, true));
 	}
 
 	DisplayField::SetDefaultColours(muted, pageBg);
+	DisplayField::SetDefaultFont(glcd19x21);
 	mgr.AddField(new StaticTextField(151, ControlX(118), ControlW(220), TextAlignment::Left, "MOVE STEPS:"));
 
 	// Step tiles: 0.1 / 0.02 on the first row, then 1 / 10 / 50.
@@ -2740,7 +3126,7 @@ static void CreateControlMovementTabFields(const ColourScheme& colours)
 	{
 		DisplayField::SetDefaultColours(text, tile);
 		controlMoveStepButtons[i] = new ModernTextButton(stepY[i], ControlX(stepX[i]), ControlW(110), 62,
-			controlMoveStepText[i], evControlMoveStep, static_cast<int>(i), glcd19x21, false);
+			controlMoveStepText[i], evControlMoveStep, static_cast<int>(i), glcd28x32, false);
 		mgr.AddField(controlMoveStepButtons[i]);
 	}
 
@@ -2755,7 +3141,7 @@ static void CreateControlMovementTabFields(const ColourScheme& colours)
 	{
 		DisplayField::SetDefaultColours(text, tile);
 		mgr.AddField(new ModernTextButton(def.y, ControlX(def.x), ControlW(117), 80,
-			def.label, evControlMoveJog, def.param, glcd19x21));
+			def.label, evControlMoveJog, def.param, glcd28x32));
 	}
 
 	// Bed compensation (G32 -> bed.g).  It intentionally has no Accent state.
@@ -2766,10 +3152,13 @@ static void CreateControlMovementTabFields(const ColourScheme& colours)
 	// Home ALL, X, Y, Z.  RRF homed state controls both the Accent outline and
 	// the vector home glyph colour.
 	DisplayField::SetDefaultColours(UTFT::fromRGB(188, 196, 207), tile);
-	controlMoveHomeAllButton = new ModernHomeButton(285, ControlX(400), ControlW(117), 80, "ALL", evControlMoveHome, 3, DEFAULT_FONT);
-	controlMoveHomeButtons[0] = new ModernHomeButton(380, ControlX(268), ControlW(117), 80, "X", evControlMoveHome, 0, DEFAULT_FONT);
-	controlMoveHomeButtons[1] = new ModernHomeButton(380, ControlX(532), ControlW(117), 80, "Y", evControlMoveHome, 1, DEFAULT_FONT);
-	controlMoveHomeButtons[2] = new ModernHomeButton(285, ControlX(664), ControlW(117), 80, "Z", evControlMoveHome, 2, DEFAULT_FONT);
+	// Home button inner labels ("ALL"/"X"/"Y"/"Z") stay at the smaller font
+	// deliberately -- glcd28x32 is too wide to fit inside the house glyph's
+	// wall opening, unlike every other tile on this page.
+	controlMoveHomeAllButton = new ModernHomeButton(285, ControlX(400), ControlW(117), 80, "ALL", evControlMoveHome, 3, glcd19x21);
+	controlMoveHomeButtons[0] = new ModernHomeButton(380, ControlX(268), ControlW(117), 80, "X", evControlMoveHome, 0, glcd19x21);
+	controlMoveHomeButtons[1] = new ModernHomeButton(380, ControlX(532), ControlW(117), 80, "Y", evControlMoveHome, 1, glcd19x21);
+	controlMoveHomeButtons[2] = new ModernHomeButton(285, ControlX(664), ControlW(117), 80, "Z", evControlMoveHome, 2, glcd19x21);
 	mgr.AddField(controlMoveHomeAllButton);
 	mgr.AddField(controlMoveHomeButtons[0]);
 	mgr.AddField(controlMoveHomeButtons[1]);
@@ -2848,67 +3237,42 @@ static void SelectControlExtrudePageForActiveTool()
 
 static void RefreshControlExtrudeTools()
 {
-	if (controlExtrudeToolCards[0] == nullptr)
+	if (controlExtrudeActiveToolCard == nullptr)
 	{
 		return;
 	}
-	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
+	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour accent = UTFT::fromRGB(226, 69, 63);
-	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
-	const unsigned int total = CountControlExtrudeTools();
-	const unsigned int pageCount = (total + ControlExtrudeToolsPerPage - 1) / ControlExtrudeToolsPerPage;
-	if (pageCount == 0)
+	const OM::Tool * const tool = (currentTool >= 0) ? OM::GetTool(currentTool) : nullptr;
+	if (tool == nullptr)
 	{
-		controlExtrudeToolPage = 0;
+		controlExtrudeActiveToolNameText.copy("OFF");
+		controlExtrudeActiveToolTempText.copy("---" DEGREE_SYMBOL "C");
 	}
-	else if (controlExtrudeToolPage >= pageCount)
+	else
 	{
-		controlExtrudeToolPage = pageCount - 1;
-	}
-
-	const unsigned int first = controlExtrudeToolPage * ControlExtrudeToolsPerPage;
-	for (unsigned int row = 0; row < ControlExtrudeToolsPerPage; ++row)
-	{
-		OM::Tool * const tool = GetControlExtrudeToolByOrdinal(first + row);
-		const bool visible = (tool != nullptr);
-		mgr.Show(controlExtrudeToolCards[row], visible);
-		mgr.Show(controlExtrudeToolNameFields[row], visible);
-		mgr.Show(controlExtrudeToolTempFields[row], visible);
-		if (!visible)
-		{
-			continue;
-		}
-
-		const bool active = (static_cast<int>(tool->index) == currentTool);
-		controlExtrudeToolNameText[row].printf("T%d", tool->index);
-		controlExtrudeToolNameFields[row]->SetValue(controlExtrudeToolNameText[row].c_str());
-		controlExtrudeToolTempText[row].copy("---" DEGREE_SYMBOL "C");
+		controlExtrudeActiveToolNameText.printf("T%d", tool->index);
+		controlExtrudeActiveToolTempText.copy("---" DEGREE_SYMBOL "C");
 		if (tool->heaters[0] != nullptr)
 		{
 			const unsigned int heater = tool->heaters[0]->heaterIndex;
 			if (heater < JobStatusMaxHeaters && jobStatusHeaterValid[heater])
 			{
-				controlExtrudeToolTempText[row].printf("%.1f" DEGREE_SYMBOL "C", (double)jobStatusHeaterTemps[heater]);
+				controlExtrudeActiveToolTempText.printf("%.1f" DEGREE_SYMBOL "C", (double)jobStatusHeaterTemps[heater]);
 			}
 		}
-		controlExtrudeToolTempFields[row]->SetValue(controlExtrudeToolTempText[row].c_str());
-		controlExtrudeToolNameFields[row]->SetColours(active ? accent : text, tile);
-		controlExtrudeToolTempFields[row]->SetColours(active ? accent : text, tile);
-		controlExtrudeToolCards[row]->SetFillColour(tile);
-		controlExtrudeToolCards[row]->SetBorderColour(active ? accent : neutralBorder);
-		controlExtrudeToolCards[row]->SetBorderVisible(active);
 	}
-
-	if (controlExtrudePageUpButton != nullptr)
-	{
-		mgr.Show(controlExtrudePageUpButton, total > ControlExtrudeToolsPerPage && controlExtrudeToolPage > 0);
-	}
-	if (controlExtrudePageDownButton != nullptr)
-	{
-		mgr.Show(controlExtrudePageDownButton,
-			total > ControlExtrudeToolsPerPage && first + ControlExtrudeToolsPerPage < total);
-	}
+	controlExtrudeActiveToolNameField->SetText(controlExtrudeActiveToolNameText.c_str());
+	controlExtrudeActiveToolTempField->SetValue(controlExtrudeActiveToolTempText.c_str());
+	// Accent border only when a tool is actually active, matching
+	// controlToolHeaderCards' conditional border on CONTROL / TOOLS -- not
+	// hard-coded on, so the OFF state reads as a normal, neutral tile.
+	const bool active = (tool != nullptr);
+	controlExtrudeActiveToolNameField->SetColours(active ? accent : text, tile);
+	controlExtrudeActiveToolTempField->SetColours(active ? accent : text, tile);
+	controlExtrudeActiveToolCard->SetBorderVisible(active);
+	controlExtrudeActiveToolCard->SetBorderColour(accent);
 }
 
 static void RefreshControlExtrudeSelections()
@@ -2942,13 +3306,13 @@ static bool ControlExtrudeTemperatureReady(bool retract)
 {
 	if (currentTool < 0)
 	{
-		ShowModernAlert("No active tool");
+		ShowModernAlert("No active tool on shuttle !");
 		return false;
 	}
 	OM::Tool * const tool = OM::GetTool(static_cast<size_t>(currentTool));
 	if (tool == nullptr || tool->extruders.IsEmpty())
 	{
-		ShowModernAlert("No active tool");
+		ShowModernAlert("No active tool on shuttle !");
 		return false;
 	}
 
@@ -2962,7 +3326,7 @@ static bool ControlExtrudeTemperatureReady(bool retract)
 		: controlColdExtrudeTemperature;
 	if (!thresholdValid)
 	{
-		ShowModernAlert("Nozzle temperature too low");
+		ShowModernAlert("Nozzle temperature too low !");
 		return false;
 	}
 	if (threshold <= 0.0f)
@@ -2987,7 +3351,7 @@ static bool ControlExtrudeTemperatureReady(bool retract)
 	});
 	if (!hasHeater || !hotEnough)
 	{
-		ShowModernAlert("Nozzle temperature too low");
+		ShowModernAlert("Nozzle temperature too low !");
 		return false;
 	}
 	return true;
@@ -3013,60 +3377,66 @@ static void CreateControlExtrusionTabFields(const ColourScheme& colours)
 	const Colour actionTile = UTFT::fromRGB(42, 49, 60);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour muted = UTFT::fromRGB(154, 164, 178);
-	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
 	DisplayField::SetDefaultFont(glcd19x21);
 
+	// Layout: 4 columns (Active tool 126, Speed 168, Distance 168,
+	// Retract/Extrude 168) with 22px gaps, centred horizontally in the
+	// 710px content pane (5px margin each side). Rows are 63 tall on a
+	// 70px pitch, 4 rows starting at y=132, centred vertically between
+	// the top tab bar (y=56) and the screen bottom (y=480).
 	DisplayField::SetDefaultColours(muted, pageBg);
-	mgr.AddField(new StaticTextField(109, ControlX(118), ControlW(224), TextAlignment::Left, "Active tool:"));
-	mgr.AddField(new StaticTextField(109, ControlX(362), ControlW(150), TextAlignment::Left, "Speed:"));
+	mgr.AddField(new StaticTextField(112, ControlX(95), ControlW(126), TextAlignment::Left, "Active tool:"));
+	mgr.AddField(new StaticTextField(112, ControlX(249), ControlW(168), TextAlignment::Left, "Speed: [mm/s]"));
+	mgr.AddField(new StaticTextField(112, ControlX(439), ControlW(168), TextAlignment::Left, "Distance: [mm]"));
 
-	// Tool rows are deliberately non-interactive information cards. The active
-	// tool is indicated by Accent, but pressing a row never changes tools.
-	for (unsigned int row = 0; row < ControlExtrudeToolsPerPage; ++row)
+	// Single "active tool" tile, carbon-copied from CONTROL / TOOLS's
+	// per-column header card -- same 126x114 size, same glcd28x32 font,
+	// same conditional Accent border/text (see controlToolHeaderCards
+	// and RefreshControlToolsPage in CreateControlToolsTabFields).
+	// Informational only; tapping it does nothing. It is its own
+	// column now, top-aligned with row 0, not stretched to span the
+	// row grid the way the old 4-row list used to.
 	{
-		const PixelNumber y = 147 + row * 62;
-		const PixelNumber x = ControlX(118);
-		const PixelNumber w = ControlW(224);
-		controlExtrudeToolNameText[row].printf("T%d", row);
-		controlExtrudeToolTempText[row].copy("---" DEGREE_SYMBOL "C");
-		DisplayField::SetDefaultColours(text, tile);
-		controlExtrudeToolNameFields[row] = new StaticTextField(y + 16, x + ControlW(16), ControlW(70), TextAlignment::Left, controlExtrudeToolNameText[row].c_str());
-		controlExtrudeToolTempFields[row] = new StaticTextField(y + 16, x + ControlW(88), w - ControlW(102), TextAlignment::Right, controlExtrudeToolTempText[row].c_str());
-		mgr.AddField(controlExtrudeToolNameFields[row]);
-		mgr.AddField(controlExtrudeToolTempFields[row]);
-		controlExtrudeToolCards[row] = new ModernCard(y, x, w, 56, tile, neutralBorder, false);
-		mgr.AddField(controlExtrudeToolCards[row]);
+		const PixelNumber x = ControlX(95);
+		const PixelNumber w = ControlW(126);
+		controlExtrudeActiveToolNameText.copy("OFF");
+		controlExtrudeActiveToolTempText.copy("---" DEGREE_SYMBOL "C");
+		DisplayField::SetDefaultColours(UTFT::fromRGB(226, 69, 63), tile);
+		DisplayField::SetDefaultFont(glcd28x32);
+		controlExtrudeActiveToolNameField = new ModernResourceLabel(144, x, w, 34, controlExtrudeActiveToolNameText.c_str(), glcd28x32);
+		controlExtrudeActiveToolTempField = new StaticTextField(197, x, w, TextAlignment::Centre, controlExtrudeActiveToolTempText.c_str());
+		mgr.AddField(controlExtrudeActiveToolNameField);
+		mgr.AddField(controlExtrudeActiveToolTempField);
+		controlExtrudeActiveToolCard = new ModernCard(132, x, w, 114, tile, UTFT::fromRGB(226, 69, 63), false);
+		mgr.AddField(controlExtrudeActiveToolCard);
 	}
 
 	for (unsigned int i = 0; i < ControlExtrudeSpeedCount; ++i)
 	{
 		DisplayField::SetDefaultColours(text, tile);
-		controlExtrudeSpeedButtons[i] = new ModernTextButton(147 + i * 62, ControlX(362), ControlW(150), 56,
-			controlExtrudeSpeedText[i], evControlExtrudeSpeed, static_cast<int>(i), glcd19x21);
+		controlExtrudeSpeedButtons[i] = new ModernTextButton(132 + i * 70, ControlX(249), ControlW(168), 63,
+			controlExtrudeSpeedText[i], evControlExtrudeSpeed, static_cast<int>(i), glcd28x32);
 		mgr.AddField(controlExtrudeSpeedButtons[i]);
 	}
 
 	for (unsigned int i = 0; i < ControlExtrudeDistanceCount; ++i)
 	{
 		DisplayField::SetDefaultColours(text, tile);
-		controlExtrudeDistanceButtons[i] = new ModernTextButton(147 + i * 62, ControlX(532), ControlW(150), 56,
-			controlExtrudeDistanceText[i], evControlExtrudeDistance, static_cast<int>(i), glcd19x21);
+		controlExtrudeDistanceButtons[i] = new ModernTextButton(132 + i * 70, ControlX(439), ControlW(168), 63,
+			controlExtrudeDistanceText[i], evControlExtrudeDistance, static_cast<int>(i), glcd28x32);
 		mgr.AddField(controlExtrudeDistanceButtons[i]);
 	}
 
+	// RETRACT at row 0's height, EXTRUDE at row 3's height, now the same
+	// 168 width as Speed/Distance (was a cramped 98 before), rows 1-2 in
+	// this column left empty, matching the rearranged mock-up.
 	DisplayField::SetDefaultColours(text, actionTile);
-	controlExtrudeRetractButton = new ModernTextButton(83, ControlX(532), ControlW(150), 60,
+	controlExtrudeRetractButton = new ModernTextButton(132, ControlX(629), ControlW(168), 63,
 		"RETRACT", evControlExtrudeAction, -1, glcd19x21);
-	controlExtrudeExtrudeButton = new ModernTextButton(393, ControlX(532), ControlW(150), 60,
+	controlExtrudeExtrudeButton = new ModernTextButton(132 + 3 * 70, ControlX(629), ControlW(168), 63,
 		"EXTRUDE", evControlExtrudeAction, 1, glcd19x21);
 	mgr.AddField(controlExtrudeRetractButton);
 	mgr.AddField(controlExtrudeExtrudeButton);
-
-	DisplayField::SetDefaultColours(text, tile);
-	controlExtrudePageUpButton = new ModernIconButton(147, ControlX(736), ControlW(54), 118, IconUp, evControlExtrudePageUp);
-	controlExtrudePageDownButton = new ModernIconButton(271, ControlX(736), ControlW(54), 118, IconDown, evControlExtrudePageDown);
-	mgr.AddField(controlExtrudePageUpButton);
-	mgr.AddField(controlExtrudePageDownButton);
 
 	controlExtrusionRoot = mgr.GetRoot();
 	mgr.SetRoot(controlExtrusionRoot);
@@ -3280,7 +3650,7 @@ static void RefreshJobStatusTile(unsigned int slot)
 	const Colour normalTile = UTFT::fromRGB(28, 34, 43);
 	const Colour muted = UTFT::fromRGB(154, 164, 178);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
-	const Colour heaterFault = UTFT::fromRGB(128, 50, 205);
+	const Colour heaterFault = UTFT::fromRGB(159, 62, 255);
 	const bool fault = heaterIndex >= 0 && heaterIndex < static_cast<int>(JobStatusMaxHeaters) &&
 		jobStatusHeaterStatus[heaterIndex] == OM::HeaterStatus::fault;
 	const Colour cardColour = fault ? heaterFault : normalTile;
@@ -3386,16 +3756,16 @@ static void CreateStatusJobStatusConfirmPopup(const ColourScheme& colours)
 	const Colour pageBg = UTFT::fromRGB(18, 22, 28);
 	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
-	const Colour cancelRed = UTFT::fromRGB(192, 57, 47);
-	const Colour confirmGreen = UTFT::fromRGB(164, 214, 94);
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);
+	const Colour confirmGreen = UTFT::fromRGB(191, 226, 62);
 	jobStatusConfirmPopup = new PopupWindow(360, 600, pageBg, colours.popupBorderColour);
 	DisplayField::SetDefaultFont(glcd19x21);
 	DisplayField::SetDefaultColours(text, tile);
 	jobStatusConfirmTitle = new ModernTextButton(70, 30, 540, 80, "CONFIRM?", evNull, 0, glcd19x21);
 	jobStatusConfirmPopup->AddField(jobStatusConfirmTitle);
-	DisplayField::SetDefaultColours(text, cancelRed);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
 	jobStatusConfirmPopup->AddField(new ModernIconButton(230, 145, 140, 80, IconCancel, evStatusJobStatusCancel));
-	DisplayField::SetDefaultColours(text, confirmGreen);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
 	jobStatusConfirmPopup->AddField(new ModernIconButton(230, 315, 140, 80, IconOk, evStatusJobStatusConfirm));
 	DisplayField::SetDefaultFont(DEFAULT_FONT);
 }
@@ -3408,9 +3778,9 @@ static void CreateStatusJobStatusTabFields(const ColourScheme& colours)
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour muted = UTFT::fromRGB(154, 164, 178);
 	const Colour pauseCyan = UTFT::fromRGB(95, 195, 220);
-	const Colour pauseText = UTFT::fromRGB(11, 31, 36);
-	const Colour abortRed = UTFT::fromRGB(192, 57, 47);
-	const Colour abortText = UTFT::fromRGB(58, 15, 12);
+	const Colour pauseText = UTFT::fromRGB(36, 36, 36);        // #242424
+	const Colour abortRed = UTFT::fromRGB(201, 50, 24);
+	const Colour abortText = UTFT::fromRGB(36, 36, 36);        // #242424
 
 	DisplayField::SetDefaultFont(glcd19x21);
 
@@ -3482,14 +3852,88 @@ static void CreateStatusJobStatusTabFields(const ColourScheme& colours)
 	RefreshJobStatusActions();
 }
 
+static void CreateControlMacroRunPopup(const ColourScheme& colours)
+{
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);
+	const Colour tile = UTFT::fromRGB(28, 34, 43);
+	const Colour text = UTFT::fromRGB(229, 232, 236);
+	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
+	const Colour accent = UTFT::fromRGB(226, 69, 63);
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);
+	const Colour confirmGreen = UTFT::fromRGB(191, 226, 62);
+
+	// Standard 660x460 popup shell, matching the tool-change / heater-off
+	// popups exactly: NAME TILE SHORT ("RUN MACRO") 35px from the top, one
+	// INFORMATION TILE (550x150) with the question and the macro name, and
+	// X/tick at the standard 110x78 size, 1/3-rule spaced (M=189, gap=63).
+	controlMacroRunPopup = new PopupWindow(460, 660, pageBg, accent);
+	DisplayField::SetDefaultFont(glcd28x32);
+	DisplayField::SetDefaultColours(text, tile);
+	controlMacroRunPopup->AddField(new ModernCard(35, 205, 250, 60, tile, accent, false));
+	controlMacroRunPopup->AddField(new StaticTextField(55, 205, 250, TextAlignment::Centre, "RUN MACRO"));
+
+	controlMacroRunPopup->AddField(new ModernCard(139, 55, 550, 150, tile, neutralBorder, true));
+	controlMacroRunPopup->AddField(new StaticTextField(163, 55, 550, TextAlignment::Centre, "Do you want to run this macro?"));
+	controlMacroRunFileField = new ModernTextButton(226, 55, 550, 40, "", evNull, 0, glcd28x32, false);
+	controlMacroRunPopup->AddField(controlMacroRunFileField);
+
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
+	controlMacroRunPopup->AddField(new ModernIconButton(332, 189, 110, 78, IconCancel, evControlMacroRunCancel));
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
+	controlMacroRunPopup->AddField(new ModernIconButton(332, 362, 110, 78, IconOk, evControlMacroRunConfirm));
+	DisplayField::SetDefaultFont(DEFAULT_FONT);
+	UNUSED(colours);
+}
+
+static void CreateControlMacrosTabFields(const ColourScheme& colours)
+{
+	mgr.SetRoot(baseRoot);
+	const Colour pageBg = UTFT::fromRGB(18, 22, 28);
+	const Colour tile = UTFT::fromRGB(28, 34, 43);
+	const Colour text = UTFT::fromRGB(229, 232, 236);
+
+	DisplayField::SetDefaultFont(glcd19x21);
+	DisplayField::SetDefaultColours(text, tile);
+	for (unsigned int row = 0; row < ControlMacroRows; ++row)
+	{
+		const PixelNumber y = 85 + row * 62;
+		controlMacroFileButtons[row] = new ModernTextButton(y, ControlX(118), ControlW(598), 56,
+			nullptr, evNull, 0, glcd19x21, false, TextAlignment::Left);
+		mgr.AddField(controlMacroFileButtons[row]);
+		mgr.Show(controlMacroFileButtons[row], false);
+	}
+
+	controlMacroPageUpButton = new ModernIconButton(147, ControlX(736), ControlW(54), 118, IconUp, evControlMacroPageUp);
+	controlMacroPageDownButton = new ModernIconButton(271, ControlX(736), ControlW(54), 118, IconDown, evControlMacroPageDown);
+	mgr.AddField(controlMacroPageUpButton);
+	mgr.AddField(controlMacroPageDownButton);
+	mgr.Show(controlMacroPageUpButton, false);
+	mgr.Show(controlMacroPageDownButton, false);
+
+	controlMacrosRoot = mgr.GetRoot();
+	mgr.SetRoot(controlMacrosRoot);
+	AddTopTab(0, 4, "TOOLS", evControlTools);
+	AddTopTab(1, 4, "MOVE", evControlMovement);
+	AddTopTab(2, 4, "EXTRUDE", evControlExtrusion);
+	AddTopTab(3, 4, "MACROS", evControlMacros);
+	controlMacrosRoot = mgr.GetRoot();
+
+	// Page background is added last because Window::AddField prepends fields.
+	mgr.SetRoot(controlMacrosRoot);
+	mgr.AddField(new ModernCard(0, masterTabWidth, DisplayX - masterTabWidth, DisplayY, pageBg, pageBg));
+	controlMacrosRoot = mgr.GetRoot();
+	DisplayField::SetDefaultFont(DEFAULT_FONT);
+	CreateControlMacroRunPopup(colours);
+}
+
 static void CreateStatusJobStartPopup(const ColourScheme& colours)
 {
 	const Colour pageBg = UTFT::fromRGB(18, 22, 28);
 	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
-	const Colour cancelRed = UTFT::fromRGB(192, 57, 47);
-	const Colour confirmGreen = UTFT::fromRGB(164, 214, 94);
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);
+	const Colour confirmGreen = UTFT::fromRGB(191, 226, 62);
 
 	// SVG reference is a 600x450 popup (inside a 610x460 drawing canvas).
 	statusJobStartPopup = new PopupWindow(450, 600, pageBg, colours.popupBorderColour);
@@ -3502,9 +3946,9 @@ static void CreateStatusJobStartPopup(const ColourScheme& colours)
 	statusJobStartFileField->SetBorderColour(neutralBorder);
 	statusJobStartPopup->AddField(statusJobStartFileField);
 
-	DisplayField::SetDefaultColours(text, cancelRed);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
 	statusJobStartPopup->AddField(new ModernIconButton(300, 145, 140, 80, IconCancel, evStatusJobPrintCancel));
-	DisplayField::SetDefaultColours(text, confirmGreen);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
 	statusJobStartPopup->AddField(new ModernIconButton(300, 315, 140, 80, IconOk, evStatusJobPrintConfirm));
 	DisplayField::SetDefaultFont(DEFAULT_FONT);
 }
@@ -3778,8 +4222,8 @@ static void CreateTuneAdjustmentPopups(const ColourScheme& colours)
 	const Colour tile = UTFT::fromRGB(28, 34, 43);
 	const Colour text = UTFT::fromRGB(229, 232, 236);
 	const Colour neutralBorder = UTFT::fromRGB(59, 67, 79);
-	const Colour cancelRed = UTFT::fromRGB(192, 57, 47);
-	const Colour confirmGreen = UTFT::fromRGB(164, 214, 94);
+	const Colour cancelRed = UTFT::fromRGB(201, 50, 24);
+	const Colour confirmGreen = UTFT::fromRGB(191, 226, 62);
 	const PixelNumber popupWidth = 610;
 	const PixelNumber popupHeight = 460;
 	const PixelNumber adjustWidth = 105;
@@ -3795,10 +4239,10 @@ static void CreateTuneAdjustmentPopups(const ColourScheme& colours)
 	static const char * const paLabels[4] = { "-0.01", "-0.002", "+0.002", "+0.01" };
 
 	auto addActions = [&](PopupWindow *popup) {
-		DisplayField::SetDefaultColours(text, cancelRed);
+		DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
 		ModernIconButton *cancel = new ModernIconButton(335, 150, 140, 80, IconCancel, evTunePopupCancel);
 		popup->AddField(cancel);
-		DisplayField::SetDefaultColours(text, confirmGreen);
+		DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
 		ModernIconButton *ok = new ModernIconButton(335, 320, 140, 80, IconOk, evTunePopupConfirm);
 		popup->AddField(ok);
 	};
@@ -3856,9 +4300,9 @@ static void CreateTuneAdjustmentPopups(const ColourScheme& colours)
 		b->SetBorderColour(neutralBorder);
 		tuneSpeedPopup->AddField(b);
 	}
-	DisplayField::SetDefaultColours(text, cancelRed);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), cancelRed);
 	tuneSpeedPopup->AddField(new ModernIconButton(332, 150, 140, 80, IconCancel, evTunePopupCancel));
-	DisplayField::SetDefaultColours(text, confirmGreen);
+	DisplayField::SetDefaultColours(UTFT::fromRGB(36, 36, 36), confirmGreen);
 	tuneSpeedPopup->AddField(new ModernIconButton(332, 320, 140, 80, IconOk, evTunePopupConfirm));
 
 	// Feed-rate/flow popup.
@@ -3960,15 +4404,11 @@ static void CreateStatusTuneTabFields(const ColourScheme& colours)
 }
 #endif
 
-static void CreateMainPages(uint32_t language, const ColourScheme& colours)
+static void CreateMainPages(const ColourScheme& colours)
 {
-	if (language >= ARRAY_SIZE(LanguageTables))
-	{
-		language = 0;
-	}
 	emptyRoot = mgr.GetRoot();
 	mgr.SetLeftMargin(masterTabWidth);
-	strings = &LanguageTables[language];
+	strings = &LanguageTables[0];
 	CreateCommonFields(colours);
 	baseRoot = mgr.GetRoot();		// save the root of fields that we usually display
 
@@ -3984,7 +4424,7 @@ static void CreateMainPages(uint32_t language, const ColourScheme& colours)
 	CreatePrintingTabFields(colours);
 	CreateStatusObjectsTabFields(colours);
 	CreateMessageTabFields(colours);
-	CreateSetupTabFields(language, colours);
+	CreateSetupTabFields(colours);
 
 	RelayoutLegacyFields();
 	AddControlSubTabs();
@@ -3993,6 +4433,7 @@ static void CreateMainPages(uint32_t language, const ColourScheme& colours)
 	CreateControlToolsTabFields(colours);
 	CreateControlMovementTabFields(colours);
 	CreateControlExtrusionTabFields(colours);
+	CreateControlMacrosTabFields(colours);
 	CreateStatusJobStatusTabFields(colours);
 	CreateStatusTuneTabFields(colours);
 	CreateStatusJobTabFields(colours);
@@ -4002,6 +4443,18 @@ static void CreateMainPages(uint32_t language, const ColourScheme& colours)
 #endif
 	AddSystemSubTabs(messageRoot);
 	AddSystemSubTabs(setupRoot);
+#if DISPLAY_X == 800
+	// Paint the Console content pane with the same dark page background used by
+	// the modern CONTROL/STATUS pages. Add it after the SYSTEM tabs so it becomes
+	// the root field and therefore paints first, underneath the log and controls.
+	mgr.SetRoot(messageRoot);
+	const Colour consolePageBg = UTFT::fromRGB(18, 22, 28); // #12161c
+	mgr.AddField(new ModernCard(contentTop, masterTabWidth, DisplayX - masterTabWidth,
+		DisplayY - contentTop, consolePageBg, consolePageBg, false));
+	messageRoot = mgr.GetRoot();
+
+	CreateModernInfoPopup();
+#endif
 	CreateScreensaverPopup();
 	CreateFirmwareUpdatePopup();
 }
@@ -4037,19 +4490,13 @@ namespace UI
 
 	static void ClearAlertOrResponse();
 
-	// Return the number of supported languages
-	unsigned int GetNumLanguages()
-	{
-		return NumLanguages;
-	}
-
 	void InitColourScheme(const ColourScheme *scheme)
 	{
 		colours = scheme;
 	}
 
 	// Create all the fields we ever display
-	void CreateFields(uint32_t language, const ColourScheme& colours, uint32_t p_infoTimeout)
+	void CreateFields(const ColourScheme& colours, uint32_t p_infoTimeout)
 	{
 		infoTimeout = p_infoTimeout;
 
@@ -4062,7 +4509,7 @@ namespace UI
 		SingleButton::SetIconMargin(iconButtonMargin);
 
 		// Create the pages
-		CreateMainPages(language, colours);
+		CreateMainPages(colours);
 
 		// Create the popup fields
 		CreateIntegerAdjustPopup(colours);
@@ -4080,8 +4527,7 @@ namespace UI
 		CreateBaudRatePopup(colours);
 		CreateColoursPopup(colours);
 		CreateAreYouSurePopup(colours);
-		CreateKeyboardPopup(language, colours);
-		CreateLanguagePopup(colours);
+		CreateKeyboardPopup(colours);
 		alertPopup = new AlertPopup(colours);
 		CreateBabystepPopup(colours);
 
@@ -4339,7 +4785,7 @@ namespace UI
 		{
 			RefreshControlToolsPage();
 		}
-		if (controlExtrudeToolCards[0] != nullptr)
+		if (controlExtrudeActiveToolCard != nullptr)
 		{
 			SelectControlExtrudePageForActiveTool();
 			RefreshControlExtrudeTools();
@@ -4998,6 +5444,32 @@ namespace UI
 		}
 	}
 
+	// Set the number of fans currently exposed by RRF. This clears stale
+	// cached fan names/values when a printer configuration removes fans.
+	void SetFanCount(size_t count)
+	{
+#if DISPLAY_X == 800
+		const size_t validCount = (count < TuneMaxFans) ? count : TuneMaxFans;
+		for (size_t fan = validCount; fan < TuneMaxFans; ++fan)
+		{
+			tuneFanPercent[fan] = 0;
+			tuneFanValid[fan] = false;
+			tuneFanNames[fan].Clear();
+		}
+
+		if (tuneToolNumberButtons[0] != nullptr)
+		{
+			RefreshTuneToolRows();
+		}
+		if (currentUiPage == UiPage::StatusJobStatus)
+		{
+			RefreshJobStatusTilesByType(JobStatusTileType::FanPart);
+			RefreshJobStatusTilesByType(JobStatusTileType::FanAux);
+			RefreshJobStatusTilesByType(JobStatusTileType::FanCha);
+		}
+#endif
+	}
+
 	void UpdateFanPercent(size_t fanIndex, int rpm)
 	{
 #if DISPLAY_X == 800
@@ -5354,6 +5826,13 @@ namespace UI
 	// Process a new message box alert, clearing any existing one
 	void ProcessAlert(const Alert& alert)
 	{
+#if DISPLAY_X == 800
+		if (displayingModernInfoPopup && mgr.IsPopupActive(modernInfoPopup))
+		{
+			mgr.ClearPopup(true, modernInfoPopup);
+		}
+		displayingModernInfoPopup = false;
+#endif
 		if (isLandscape)
 		{
 			alertPopup->Set(alert);
@@ -5371,9 +5850,21 @@ namespace UI
 		if (alertMode >= 0)
 		{
 			alertTicks = 0;
-			mgr.ClearPopup(true, alertPopup);
+#if DISPLAY_X == 800
+			if (displayingModernInfoPopup)
+			{
+				mgr.ClearPopup(true, modernInfoPopup);
+			}
+			else
+#endif
+			{
+				mgr.ClearPopup(true, alertPopup);
+			}
 			CurrentAlertModeClear();
 			alertMode = -1;
+#if DISPLAY_X == 800
+			displayingModernInfoPopup = false;
+#endif
 		}
 	}
 
@@ -5383,10 +5874,22 @@ namespace UI
 		if (alertMode >= 0 || displayingResponse)
 		{
 			alertTicks = 0;
-			mgr.ClearPopup(true, alertPopup);
+#if DISPLAY_X == 800
+			if (displayingModernInfoPopup)
+			{
+				mgr.ClearPopup(true, modernInfoPopup);
+			}
+			else
+#endif
+			{
+				mgr.ClearPopup(true, alertPopup);
+			}
 			CurrentAlertModeClear();
 			alertMode = -1;
 			displayingResponse = false;
+#if DISPLAY_X == 800
+			displayingModernInfoPopup = false;
+#endif
 		}
 	}
 
@@ -5401,8 +5904,12 @@ namespace UI
 		{
 			if (isLandscape)
 			{
+#if DISPLAY_X == 800
+				ShowModernInfoPopup("", text, false);
+#else
 				alertPopup->Set(strings->message, text, 1, 0);
 				mgr.SetPopup(alertPopup, AutoPlace, AutoPlace);
+#endif
 			}
 			alertMode = 1;												// a simple alert is like a mode 1 alert without a title
 			displayingResponse = false;
@@ -5422,8 +5929,12 @@ namespace UI
 		{
 			if (isLandscape)
 			{
+#if DISPLAY_X == 800
+				ShowModernInfoPopup(isErrorMessage ? "ALERT !" : "", text, isErrorMessage);
+#else
 				alertPopup->Set(strings->response, text, 1, 0);
 				mgr.SetPopup(alertPopup, AutoPlace, AutoPlace);
+#endif
 			}
 			alertMode = -1;												// make sure that a call to ClearAlert doesn't clear us
 			displayingResponse = true;
@@ -5630,7 +6141,6 @@ namespace UI
 		case evAdjustBabystepAmount:
 		case evAdjustFeedrate:
 		case evAdjustColours:
-		case evAdjustLanguage:
 			break;
 		case evOkAlert:
 		case evCloseAlert:
@@ -5717,13 +6227,78 @@ namespace UI
 				break;
 
 			case evControlMacros:
+#if DISPLAY_X == 800
+				mgr.SetRoot(controlMacrosRoot);
+				FileManager::DisplayControlMacrosPage();
+#else
 				mgr.SetRoot(controlRoot);
+#endif
 				currentUiPage = UiPage::ControlMacros;
 				mgr.Refresh(true);
 				currentButton.Clear();
 				break;
 
 #if DISPLAY_X == 800
+			case evControlMacroFile:
+			{
+				const char * const macroName = bp.GetSParam();
+				if (macroName == nullptr)
+				{
+					ErrorBeep();
+					break;
+				}
+				if (macroName[0] == '*')
+				{
+					FileManager::RequestControlMacrosSubdir(macroName + 1);
+				}
+				else
+				{
+					controlMacroPendingFile.copy(macroName);
+					controlMacroRunFileField->SetText(SkipDigitsAndUnderscore(controlMacroPendingFile.c_str()));
+					mgr.SetPopup(controlMacroRunPopup, AutoPlace, AutoPlace);
+				}
+				currentButton.Clear();
+				break;
+			}
+
+			case evControlMacroPageUp:
+				if (controlMacroCanScrollEarlier)
+				{
+					FileManager::ScrollControlMacrosPage(-static_cast<int>(ControlMacroRows));
+				}
+				else if (controlMacroInSubdir)
+				{
+					FileManager::RequestControlMacrosParentDir();
+				}
+				currentButton.Clear();
+				break;
+
+			case evControlMacroPageDown:
+				if (controlMacroCanScrollLater)
+				{
+					FileManager::ScrollControlMacrosPage(static_cast<int>(ControlMacroRows));
+				}
+				currentButton.Clear();
+				break;
+
+			case evControlMacroRunConfirm:
+				mgr.ClearPopup();
+				if (controlMacroPendingFile.strlen() != 0)
+				{
+					SerialIo::Sendf("M98 P");
+					SerialIo::SendFilename(CondStripDrive(FileManager::GetMacrosDir()), controlMacroPendingFile.c_str());
+					SerialIo::SendChar('\n');
+					controlMacroPendingFile.Clear();
+				}
+				currentButton.Clear();
+				break;
+
+			case evControlMacroRunCancel:
+				controlMacroPendingFile.Clear();
+				mgr.ClearPopup();
+				currentButton.Clear();
+				break;
+
 			case evControlToolsPageUp:
 				if (controlToolPage > 0) --controlToolPage;
 				RefreshControlToolsPage();
@@ -5745,6 +6320,11 @@ namespace UI
 
 			case evControlToolsStandbyTemp:
 				OpenControlTempNumpad(static_cast<unsigned int>(bp.GetIParam()), false);
+				currentButton.Clear();
+				break;
+
+			case evControlToolsHeaderTap:
+				HandleControlToolHeaderTap(static_cast<unsigned int>(bp.GetIParam()));
 				currentButton.Clear();
 				break;
 
@@ -5789,8 +6369,21 @@ namespace UI
 			case evNumericOk:
 				if (controlTempNumpadPopup != nullptr && mgr.GetPopup() == controlTempNumpadPopup)
 				{
-					SendControlTemperatureTarget();
-					mgr.ClearPopup();
+					const int value = static_cast<int>(controlTempNumpadValue);
+					int minValue = 0;
+					int maxValue = 0;
+					if (ValidateControlTemperatureTarget(value, minValue, maxValue))
+					{
+						SendControlTemperatureTarget();
+						mgr.ClearPopup();
+					}
+					else
+					{
+						// Close the keypad first, then show the reusable alert popup.
+						// No heater command is sent for an invalid value.
+						mgr.ClearPopup();
+						ShowControlTemperatureRangeAlert(minValue, maxValue);
+					}
 				}
 				currentButton.Clear();
 				break;
@@ -5813,6 +6406,16 @@ namespace UI
 				break;
 
 			case evControlToolChangeCancel:
+				mgr.ClearPopup();
+				currentButton.Clear();
+				break;
+
+			case evControlHeaterOffConfirm:
+				HandleControlHeaterOffConfirm();
+				currentButton.Clear();
+				break;
+
+			case evControlHeaterOffCancel:
 				mgr.ClearPopup();
 				currentButton.Clear();
 				break;
@@ -5879,6 +6482,11 @@ namespace UI
 
 			case evModernAlertClose:
 				mgr.ClearPopup();
+				currentButton.Clear();
+				break;
+
+			case evModernInfoClose:
+				ClearAlertOrResponse();
 				currentButton.Clear();
 				break;
 
@@ -6347,6 +6955,13 @@ namespace UI
 				break;
 
 			case evSystemAlerts:
+				// This event is used both by the SYSTEM sub-tab and by the permanent
+				// bottom-left warning-triangle shortcut. If it came from another
+				// master section, select SYSTEM first so the rail state stays truthful.
+				if (currentTab != tabSystem)
+				{
+					ChangePage(tabSystem);
+				}
 				mgr.SetRoot(messageRoot);
 				currentUiPage = UiPage::SystemAlerts;
 				mgr.Refresh(true);
@@ -6968,22 +7583,6 @@ namespace UI
 				mgr.ClearPopup();
 				break;
 
-			case evSetLanguage:
-				Adjusting(bp);
-				mgr.SetPopup(languagePopup, AutoPlace, popupY);
-				break;
-
-			case evAdjustLanguage:
-				{
-					const uint8_t newLanguage = (uint8_t)bp.GetIParam();
-					if (nvData.SetLanguage(newLanguage))
-					{
-						SaveSettings();
-						Reset();
-					}
-				}
-				mgr.ClearPopup();
-				break;
 
 			case evSetDimmingType:
 				ChangeDisplayDimmerType();
@@ -7181,11 +7780,6 @@ namespace UI
 				mgr.ClearPopup();
 				StopAdjusting();
 				break;
-
-			case evSetLanguage:
-				mgr.ClearPopup();
-				StopAdjusting();
-				break;
 			}
 		}
 		else
@@ -7220,7 +7814,6 @@ namespace UI
 			case evSetFeedrate:
 			case evSetBabystepAmount:
 			case evSetColours:
-			case evSetLanguage:
 			case evCalTouch:
 			case evInvertX:
 			case evInvertY:
@@ -7337,6 +7930,58 @@ namespace UI
 		const bool isDirectory = (text != nullptr && text[0] == '*');
 		button->SetText(isDirectory ? text + 1 : text);
 		button->SetEvent((text == nullptr) ? evNull : evStatusJobFile, param);
+		button->SetBorderVisible(isDirectory);
+		if (isDirectory)
+		{
+			button->SetBorderColour(UTFT::fromRGB(59, 67, 79));
+		}
+		mgr.Show(button, text != nullptr);
+#else
+		UNUSED(buttonIndex);
+		UNUSED(text);
+		UNUSED(param);
+#endif
+	}
+
+	void EnableControlMacroNavButtons(bool scrollEarlier, bool scrollLater, bool parentDir)
+	{
+#if DISPLAY_X == 800
+		controlMacroCanScrollEarlier = scrollEarlier;
+		controlMacroCanScrollLater = scrollLater;
+		controlMacroInSubdir = parentDir;
+		if (controlMacroPageUpButton != nullptr)
+		{
+			mgr.Show(controlMacroPageUpButton, scrollEarlier || parentDir);
+		}
+		if (controlMacroPageDownButton != nullptr)
+		{
+			mgr.Show(controlMacroPageDownButton, scrollLater);
+		}
+#else
+		UNUSED(scrollEarlier);
+		UNUSED(scrollLater);
+		UNUSED(parentDir);
+#endif
+	}
+
+	void UpdateControlMacroFileButton(unsigned int buttonIndex, const char * _ecv_array null text, const char * _ecv_array null param)
+	{
+#if DISPLAY_X == 800
+		if (buttonIndex >= ControlMacroRows || controlMacroFileButtons[buttonIndex] == nullptr)
+		{
+			return;
+		}
+
+		ModernTextButton * const button = controlMacroFileButtons[buttonIndex];
+		const bool isDirectory = (text != nullptr && text[0] == '*');
+		const char *displayText = text;
+		if (displayText != nullptr)
+		{
+			displayText = isDirectory ? displayText + 1 : displayText;
+			displayText = SkipDigitsAndUnderscore(displayText);
+		}
+		button->SetText(displayText);
+		button->SetEvent((text == nullptr) ? evNull : evControlMacroFile, param);
 		button->SetBorderVisible(isDirectory);
 		if (isDirectory)
 		{
@@ -7606,7 +8251,7 @@ namespace UI
 		{
 			RefreshControlToolsPage();
 		}
-		if (controlExtrudeToolCards[0] != nullptr)
+		if (controlExtrudeActiveToolCard != nullptr)
 		{
 			SelectControlExtrudePageForActiveTool();
 			RefreshControlExtrudeTools();
@@ -7780,7 +8425,7 @@ namespace UI
 			{
 				RefreshTuneToolRows();
 			}
-			if (controlExtrudeToolCards[0] != nullptr)
+			if (controlExtrudeActiveToolCard != nullptr)
 			{
 				RefreshControlExtrudeTools();
 			}
@@ -7798,6 +8443,40 @@ namespace UI
 			if (tuneToolNumberButtons[0] != nullptr)
 			{
 				RefreshTuneToolRows();
+				// Fan names and tool-to-fan assignments may arrive in either order.
+				// Re-evaluate FAN_AUX/FAN_CHA after the tool mapping changes so
+				// a tool-associated fan is never left classified as a general fan.
+				RefreshTuneGeneralFans();
+			}
+			if (currentUiPage == UiPage::StatusJobStatus)
+			{
+				RefreshJobStatusTilesByType(JobStatusTileType::FanPart);
+				RefreshJobStatusTilesByType(JobStatusTileType::FanAux);
+				RefreshJobStatusTilesByType(JobStatusTileType::FanCha);
+			}
+#endif
+		}
+	}
+
+	// Clear the current tool-to-fan mapping before RRF supplies a fresh fan
+	// array. This prevents removed/reassigned fans from remaining attached
+	// to a tool in the local object-model mirror.
+	void ClearToolFans(size_t toolIndex)
+	{
+		OM::Tool *tool = OM::GetOrCreateTool(toolIndex);
+		if (tool != nullptr)
+		{
+			tool->fans.Clear();
+#if DISPLAY_X == 800
+			if (tuneToolNumberButtons[0] != nullptr)
+			{
+				RefreshTuneToolRows();
+			}
+			if (currentUiPage == UiPage::StatusJobStatus)
+			{
+				RefreshJobStatusTilesByType(JobStatusTileType::FanPart);
+				RefreshJobStatusTilesByType(JobStatusTileType::FanAux);
+				RefreshJobStatusTilesByType(JobStatusTileType::FanCha);
 			}
 #endif
 		}
@@ -7827,7 +8506,7 @@ namespace UI
 		}
 		toolHeater->heaterIndex = heaterIndex;
 #if DISPLAY_X == 800
-		if (controlExtrudeToolCards[0] != nullptr)
+		if (controlExtrudeActiveToolCard != nullptr)
 		{
 			RefreshControlExtrudeTools();
 		}
